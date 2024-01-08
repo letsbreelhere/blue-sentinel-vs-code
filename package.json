@@ -21,7 +21,17 @@
         "command": "instant-code.joinSession",
         "title": "Instant: Join Session"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Instant Code",
+      "properties": {
+        "instant-code.username": {
+          "type": "string",
+          "default": "",
+          "description": "Your (unique) username"
+        },
+      }
+    },
   },
   "scripts": {
     "vscode:prepublish": "yarn run compile",
