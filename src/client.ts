@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { window, env } from 'vscode';
-import console from './logger';
+import Logger from './logger';
 import { messageEnum, ProtocolMessage, VSCODE_AGENT } from './protocol';
 
 // eslint-disable-next-line @typescript-eslint/naming-convention
@@ -85,26 +85,39 @@ class Client {
   async sendTextOperation() {
   }
 
+  async setupGuest() {
+    this.websocket.on('open', () => {
+      Logger.log('Client connected');
+      this.sendInfo();
+    });
+
+    this.websocket.on('message', (data: any) => {
+      Logger.log(`received: ${data}`);
+    });
+
+    this.websocket.on('error', (error: any) => {
+      Logger.log(`WebSocket error: ${error}`);
+    });
+
+    this.websocket.on('close', () => {
+      Logger.log('WebSocket connection closed');
+    });
+  }
+
+  async setupHost() {
+    throw new Error('Not implemented');
+  }
+
   constructor(url: URL, isHost: boolean) {
-  const ws = new WebSocket(url, 'chat');
-  this.websocket = ws;
-  this.isHost = isHost;
+    const ws = new WebSocket(url, 'chat');
+    this.websocket = ws;
+    this.isHost = isHost;
 
-  ws.on('open', () => {
-    console.log('Client connected');
-  });
-
-  ws.on('message', (data: any) => {
-    console.log(`received: ${data}`);
-  });
-
-  ws.on('error', (error: any) => {
-    console.log(`WebSocket error: ${error}`);
-  });
-
-  ws.on('close', () => {
-    console.log('WebSocket connection closed');
-  });
+    if (isHost) {
+      this.setupHost();
+    } else {
+      this.setupGuest();
+    }
   }
 }
 

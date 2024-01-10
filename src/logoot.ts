@@ -13,7 +13,6 @@ export class PidOrderingError extends Error {
   }
 }
 
-
 export function randomBetween(left: bigint, right: bigint): bigint {
   const delta: number = Math.floor(Math.random() * Number(right - left));
   return left + 1n + BigInt(delta);

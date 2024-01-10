@@ -31,9 +31,8 @@ export function activate(context: vscode.ExtensionContext) {
 			return Promise.resolve(true);
 		}
 
-		const username = await window.showInputBox({ prompt: 'Enter username' });
-		vscode.workspace.getConfiguration('instant-code').update('username', username);
-		return true;
+    await window.showErrorMessage('Please set your username in the Instant Code extension settings');
+		return false;
 	}
 
 	async function promptServerUrl(): Promise<URL | undefined> {
@@ -45,7 +44,6 @@ export function activate(context: vscode.ExtensionContext) {
 		await checkUsernameExists();
 		const usedPort = port || DEFAULT_PORT;
 		const server = new Server(usedPort);
-		console.log(`Instant Code server started on port ${usedPort}`);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('instant-code.startSession', async () => {
