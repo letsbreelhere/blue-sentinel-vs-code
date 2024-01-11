@@ -1,25 +1,47 @@
 import * as vscode from 'vscode';
 import { window, env } from 'vscode';
 import Logger from './logger';
-import { messageEnum, ProtocolMessage, VSCODE_AGENT } from './protocol';
+import { CRDT } from './logoot';
+import { messageEnum, messageTypeFromEnum, ProtocolMessage, VSCODE_AGENT } from './protocol';
+import WebSocket from 'ws';
 
 // eslint-disable-next-line @typescript-eslint/naming-convention
-const WebSocket = require('ws');
 
 class Client {
-  websocket: typeof WebSocket;
+  websocket: WebSocket;
   isHost: boolean;
+  clientId: number | undefined;
+  bufferName: string | undefined;
+  crdt: CRDT = new CRDT();
+  document: vscode.TextDocument;
 
   static sockets = new Map<string, Client>();
 
-  static async create(documentUri: string, url: URL, isHost: boolean) {
-  const client = new Client(url, isHost);
-  Client.sockets.set(documentUri, client);
-  return client;
+  static async create(document: vscode.TextDocument, url: URL, isHost: boolean) {
+    const client = new Client(url, isHost, document);
+    Client.sockets.set(document.uri.toString(), client);
+    return client;
+  }
+
+  constructor(url: URL, isHost: boolean, document: vscode.TextDocument) {
+    const ws = new WebSocket(url, 'chat');
+    this.websocket = ws;
+    this.isHost = isHost;
+    this.document = document;
+
+    if (isHost) {
+      this.setupHost();
+    } else {
+      this.setupGuest();
+    }
+  }
+
+  close() {
+    this.websocket.close();
   }
 
   async sendMessage(messageType: ProtocolMessage, ...data: any) {
-  return this.websocket.send(JSON.stringify([messageEnum(messageType), ...data]));
+    return this.websocket.send(JSON.stringify([messageEnum(messageType), ...data]));
   }
 
   /*
@@ -58,6 +80,23 @@ class Client {
   async sendInitialBuffer() {
   }
 
+  async handleInitialMessage(data: any[]) {
+    const [_, bufferName, [_bufnr, hostId], uids, lines] = data;
+
+    this.bufferName = bufferName;
+    Logger.log(`Buffer name: ${this.bufferName}`);
+
+    // Setup CRDT with initial content
+    this.crdt.initialize({ hostId, uids, lines });
+
+    // Set document content from CRDT
+    vscode.window.showTextDocument(this.document).then((editor) => {
+      editor.edit((editBuilder) => {
+        editBuilder.insert(new vscode.Position(0, 0), this.crdt.asString());
+      });
+    });
+  }
+
   /*
     The request message. This is sent when a client **joins** a server. It asks for current data. The server relays this message to an already connected client.
 
@@ -85,6 +124,37 @@ class Client {
   async sendTextOperation() {
   }
 
+  /*
+    The available message sent by the server in response to the client.
+
+    [
+            MSG_AVAILABLE, // message type [integer]
+            is_first, // first client to connect to the server? [boolean]
+            client_id, // unique client id assigned by the server [integer]
+            session_share, // server in session share mode? [boolean]
+
+    ]
+  */
+  async handleAvailableMessage(data: any[]) {
+    const [_, isFirst, clientId, sessionShare] = data;
+
+    if (isFirst && !this.isHost) {
+      vscode.window.showErrorMessage('Error: guest was first to connect');
+      this.close();
+    }
+    if (sessionShare) {
+      vscode.window.showErrorMessage('Error: session share not implemented');
+      this.close();
+    }
+
+    this.clientId = clientId;
+    Logger.log(`Client id: ${this.clientId}`);
+
+    if (!this.isHost) {
+      this.requestInitialBuffer();
+    }
+  }
+
   async setupGuest() {
     this.websocket.on('open', () => {
       Logger.log('Client connected');
@@ -93,6 +163,23 @@ class Client {
 
     this.websocket.on('message', (data: any) => {
       Logger.log(`received: ${data}`);
+      try {
+        const json: any = JSON.parse(data);
+        switch (messageTypeFromEnum(json[0])) {
+          case 'MSG_AVAILABLE':
+            this.handleAvailableMessage(json);
+            break;
+          case 'MSG_INITIAL':
+            this.handleInitialMessage(json);
+            break;
+          default:
+            Logger.log(`Received unhandled message ${data}`);
+            break;
+        }
+      } catch (e) {
+        Logger.log(`Received bad message ${data}`);
+        Logger.log(`Error parsing JSON: ${e}`);
+      }
     });
 
     this.websocket.on('error', (error: any) => {
@@ -106,18 +193,6 @@ class Client {
 
   async setupHost() {
     throw new Error('Not implemented');
-  }
-
-  constructor(url: URL, isHost: boolean) {
-    const ws = new WebSocket(url, 'chat');
-    this.websocket = ws;
-    this.isHost = isHost;
-
-    if (isHost) {
-      this.setupHost();
-    } else {
-      this.setupGuest();
-    }
   }
 }
 

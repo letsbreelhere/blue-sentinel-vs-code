@@ -50,19 +50,19 @@ export function activate(context: vscode.ExtensionContext) {
 		await checkUsernameExists();
 		const url = await promptServerUrl();
 		if (url) {
-			let documentUri = window.activeTextEditor?.document.uri.toString();
-			if (!documentUri) {
+			let document = window.activeTextEditor?.document;
+			if (!document) {
 				workspace.openTextDocument().then((doc: vscode.TextDocument) => {
-					documentUri = doc.uri.toString();
+					document = doc;
 				});
 			}
 
-			if (!documentUri) {
+			if (!document) {
 				window.showErrorMessage("No active document, and couldn't create a new one");
 				return;
 			}
 
-			Client.create(documentUri.toString(), url, true);
+			Client.create(document, url, true);
 		}
 	}));
 
@@ -71,7 +71,7 @@ export function activate(context: vscode.ExtensionContext) {
 		const url = await promptServerUrl();
 		if (url) {
 			workspace.openTextDocument().then((doc: vscode.TextDocument) => {
-				Client.create(doc.uri.toString(), url, false);
+				Client.create(doc, url, false);
 				window.showTextDocument(doc);
 			});
 		}
