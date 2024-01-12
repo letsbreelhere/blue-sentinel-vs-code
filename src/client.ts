@@ -14,6 +14,7 @@ class Client {
   bufferName: string | undefined;
   crdt: CRDT = new CRDT();
   document: vscode.TextDocument;
+  subscriptions: vscode.Disposable[] = [];
 
   static sockets = new Map<string, Client>();
 
@@ -34,9 +35,35 @@ class Client {
     } else {
       this.setupGuest();
     }
+
+    this.subscriptions.push(vscode.workspace.onDidChangeTextDocument((e) => this.handleTextChange(e)));
+  }
+
+  handleTextChange(e: vscode.TextDocumentChangeEvent) {
+    Logger.log(`Document changed: ${e.document.uri.toString()}`);
+    if (e.document !== this.document) {
+      return;
+    }
+
+    const changes = e.contentChanges;
+
+    changes.forEach((change) => {
+      if (change.rangeLength === 0) {
+        Logger.log(`Insert: ${change.rangeOffset}, ${change.text}`);
+      } else if (change.rangeLength > 0) {
+        Logger.log(`Replace: ${change.rangeOffset}, ${change.text}`);
+        // Handle a replace as a delete followed by an insert
+      } else {
+        Logger.log(`Unknown change: ${JSON.stringify(change)}`);
+      }
+    });
   }
 
   close() {
+    // Unbind event handlers
+    this.websocket.removeAllListeners();
+    this.subscriptions.forEach((s) => s.dispose());
+
     this.websocket.close();
   }
 

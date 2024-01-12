@@ -28,7 +28,7 @@
         "instant-code.username": {
           "type": "string",
           "default": "",
-          "description": "Your (unique) username"
+          "description": "Your unique username"
         }
       }
     }

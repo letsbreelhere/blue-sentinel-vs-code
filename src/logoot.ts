@@ -48,6 +48,8 @@ type InitialCRDT = {
 };
 
 export class CRDT {
+  pids: Pid[] = [];
+  chars: string[] = [];
   pidMap: Map<string, string> = new Map();
 
   initialize(initial: InitialCRDT) {
