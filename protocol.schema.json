@@ -1,0 +1,107 @@
+{
+  "$schema": "http://json-schema.org/draft/2020-12/schema#",
+  "type": "array",
+  "oneOf": [
+    // MSG_TEXT
+    {
+      "items": [
+        { "const": 1 },
+        { "$ref": "#/definitions/operation" },
+        { "$ref": "#/definitions/buffer" }, // buffer
+        { "type": "integer" } // sender_id
+      ],
+      "additionalItems": false
+    },
+    // MSG_AVAILABLE
+    {
+      "items": [
+        { "const": 2 },
+        { "type": "boolean" }, // is_first
+        { "type": "integer" }, // client_id
+        { "type": "boolean" }, // session_share
+      ],
+      "additionalItems": false
+    },
+    // MSG_REQUEST
+    {
+      "items": [
+        { "const": 3 }
+      ],
+      "additionalItems": false
+    },
+    // MSG_INFO
+    {
+      "items": [
+        { "const": 5 },
+        { "type": "boolean" }, // session_share
+        { "type": "string" }, // username
+        { "type": "integer" } // agent_id
+      ],
+      "additionalItems": false
+    },
+    // MSG_INITIAL
+    {
+      "items": [
+        { "const": 6 },
+        { "type": "string" }, // buffer_name
+        { "$ref": "#/definitions/buffer" }, // buffer
+        // initial  pids
+        {
+          "type": "array",
+          "items": { "type": "integer" }
+        },
+        { "type": "string" } // content
+      ],
+      "additionalItems": false
+    },
+    // MSG_CONNECT
+    {
+      "items": [
+        { "const": 7 },
+        { "type": "integer" }, // client_id
+        { "type": "string" } // username
+      ],
+      "additionalItems": false
+    },
+    // MSG_DISCONNECT
+    {
+      "items": [
+        { "const": 8 },
+        { "type": "integer" }, // client_id
+      ],
+      "additionalItems": false
+    }
+  ],
+
+
+  "definitions": {
+    "operation": {
+      "type": "array",
+      "items": [
+        { "enum": [1, 2] }, // OP_DEL or OP_INS
+        { "type": "string", "maxLength": 1 }, // char
+        { "$ref": "#/definitions/pid" }, // pid
+      ],
+      "additionalItems": false
+    },
+    "pid": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": [
+          { "type": "integer" }, // uid
+          { "type": "integer" } // client_id
+        ],
+        "additionalItems": false
+      }
+    },
+    "buffer": {
+      "type": "array",
+      "items": [
+        { "type": "integer" }, // bufnr
+        { "type": "integer" }, // client_id
+      ],
+      "additionalItems": false
+    }
+  }
+}
