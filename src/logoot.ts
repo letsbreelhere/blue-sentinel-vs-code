@@ -5,6 +5,20 @@ import { pid } from "process";
 export type ClientId = bigint & { readonly __tag: unique symbol };
 export type Pid = [bigint, ClientId][] & { readonly __tag: unique symbol };
 
+export function pidToJson(pids: Pid): string {
+  // JSON doesn't support bigint, so we have to convert to string.
+  return JSON.stringify(pids.map((pid) => [pid[0].toString(), pid[1].toString()]));
+}
+
+export function pidFromJson(json: string): Pid {
+  try {
+    const pid = JSON.parse(json) as [string, string][];
+    return pid.map((pid) => [BigInt(pid[0]), BigInt(pid[1]) as ClientId]) as Pid;
+  } catch (e) {
+    throw new Error(`Invalid JSON: ${json}`);
+  }
+}
+
 // Chosen by comparison with instant.nvim. Can be adjusted; this is just the PID chosen for the document end marker.
 export const MAX_PID: bigint = 10000000000n;
 
@@ -24,7 +38,12 @@ export function randomBetween(left: bigint, right: bigint): bigint {
 export function generatePid(clientId: ClientId, left: Pid, right: Pid): Pid {
   const p = [];
   for (let i = 0; i < left.length; i++) {
-    const decRight = [right[i][0] - 1n, right[i][1]];
+    let decRight;
+    if (right.length > i) {
+      decRight = [right[i][0] - 1n, right[i][1]];
+    } else {
+      decRight = [MAX_PID, clientId];
+    }
     if (left[i] < decRight) {
       const r = randomBetween(left[i][0] + 1n, right[i][0]);
       p.push([r, clientId]);
@@ -41,50 +60,50 @@ export function generatePid(clientId: ClientId, left: Pid, right: Pid): Pid {
   return p as Pid;
 }
 
-type InitialCRDT = {
-  hostId: ClientId,
-  uids: bigint[],
-  lines: string[],
-};
-
 export class CRDT {
-  pids: Pid[] = [];
-  chars: string[] = [];
+  sortedPids: Pid[] = []; // TODO: Using an array here makes insert/delete painful for large files.
   pidMap: Map<string, string> = new Map();
 
-  initialize(initial: InitialCRDT) {
-    const joinedLines = initial.lines.join("\n") + '\n';
+  initialize(initial: { hostId: ClientId, uids: bigint[], lines: string[], }) {
+    const joinedLines: string = initial.lines.join("\n") + '\n';
 
     for (let i = 0; i < joinedLines.length; i++) {
-      const pidUid: bigint = initial.uids[i];
+      const uid: bigint = initial.uids[i];
       const char: string = joinedLines[i];
-      const pid: Pid = [[pidUid, initial.hostId]] as Pid;
-      this.pidMap.set(JSON.stringify(pid), char);
+      const pid: Pid = [[uid, initial.hostId]] as Pid;
+      this.pidMap.set(pidToJson(pid), char);
+      this.sortedPids.push(pid);
     }
   }
 
+  sortedIndex(pid: Pid): number {
+    let left = 0;
+    let right = this.sortedPids.length;
+    while (left < right) {
+      const mid = Math.ceil((left + right) / 2);
+      if (this.sortedPids[mid] < pid) {
+        left = mid;
+      } else {
+        right = mid - 1;
+      }
+    }
+
+    return left;
+  }
+
   insert(pid: Pid, char: string): void {
-    this.pidMap.set(JSON.stringify(pid), char);
+    this.pidMap.set(pidToJson(pid), char);
+    const i = this.sortedIndex(pid);
+    this.sortedPids = [...this.sortedPids.slice(0, i), pid, ...this.sortedPids.slice(i)];
   }
 
   delete(pid: Pid): void {
-    this.pidMap.delete(JSON.stringify(pid));
+    this.pidMap.delete(pidToJson(pid));
+    const i = this.sortedIndex(pid);
+    this.sortedPids = [...this.sortedPids.slice(0, i-1), ...this.sortedPids.slice(i)];
   }
 
   asString(): string {
-    const sortedPids = [...this.pidMap.keys()].sort((a, b) => {
-      const pidA: Pid = JSON.parse(a);
-      const pidB: Pid = JSON.parse(b);
-
-      if (pidA < pidB) {
-        return -1;
-      } else if (pidA > pidB) {
-        return 1;
-      }
-
-      return 0;
-    });
-
-    return sortedPids.map((pid) => this.pidMap.get(pid)).join('');
+    return this.sortedPids.map((pid) => this.pidMap.get(pidToJson(pid))).join('');
   }
 }
