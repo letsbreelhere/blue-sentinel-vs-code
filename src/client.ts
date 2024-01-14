@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { window, env } from 'vscode';
 import Logger from './logger';
-import { CRDT } from './logoot';
+import { CRDT, Pid, ClientId } from './logoot';
 import { messageEnum, messageTypeFromEnum, ProtocolMessage, VSCODE_AGENT } from './protocol';
 import WebSocket from 'ws';
 
@@ -149,6 +149,10 @@ class Client {
     ]
   */
   async sendTextOperation() {
+  }
+
+  async handleInsert(c: string, pid: Pid, clientId: ClientId) {
+    this.crdt.insert(pid, c);
   }
 
   /*
