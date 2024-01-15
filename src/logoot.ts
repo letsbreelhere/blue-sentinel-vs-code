@@ -2,6 +2,7 @@
 
 import { pid } from "process";
 import Logger from "./logger";
+import assert from "assert";
 
 export type ClientId = bigint & { readonly __tag: unique symbol };
 export type Pid = [bigint, ClientId][] & { readonly __tag: unique symbol };
@@ -87,6 +88,29 @@ export function generatePid(clientId: ClientId, left: Pid, right: Pid): Pid {
   return p as Pid;
 }
 
+export function sortedIndex<T>(x: T, xs: T[]): number {
+  // return xs.findIndex((y) => y > x);
+
+  let left = 0;
+  let right = xs.length - 1;
+  while (left < right) {
+    const mid = Math.floor((left + right) / 2);
+    if (xs[mid] === pid) {
+      return mid;
+    } else if (xs[mid] < x) {
+      left = mid + 1;
+    } else {
+      right = mid;
+    }
+  }
+
+  if (xs[right] < x) {
+    return -1;
+  } else {
+    return right;
+  }
+}
+
 export class CRDT {
   sortedPids: Pid[] = []; // TODO: Using an array here makes insert/delete painful for large files.
   pidMap: Map<string, string> = new Map();
@@ -94,44 +118,47 @@ export class CRDT {
   initialize(initial: { hostId: ClientId, uids: bigint[], lines: string[], }) {
     const joinedLines: string = initial.lines.join("\n") + '\n';
 
+    if (initial.uids.length !== joinedLines.length + 2) {
+      let err = [
+        `Invalid initial content: ${initial.lines}`,
+        `UID count: ${initial.uids.length}`,
+        `Content length: ${joinedLines.length}`,
+      ];
+      throw new Error(err.join("\n"));
+    }
+
+    const uids = initial.uids.slice(1, -1);
+
+    this.sortedPids.push([[initial.uids[0], initial.hostId]] as Pid);
     for (let i = 0; i < joinedLines.length; i++) {
-      const uid: bigint = initial.uids[i];
+      const uid: bigint = uids[i];
       const char: string = joinedLines[i];
       const pid: Pid = [[uid, initial.hostId]] as Pid;
+      if (!uid) {
+        console.log(`Invalid UID: ${uid}`);
+      }
       this.pidMap.set(pidToJson(pid), char);
       this.sortedPids.push(pid);
     }
+    this.sortedPids.push([[initial.uids[initial.uids.length - 1], initial.hostId]] as Pid);
   }
 
-  // Find the index of the first PID >= pid, for insertion.
-  sortedIndex(pid: Pid): number {
-    let left = 0;
-    let right = this.sortedPids.length;
-    while (left < right) {
-      const mid = Math.ceil((left + right) / 2);
-      if (this.sortedPids[mid] < pid) {
-        left = mid;
-      } else {
-        right = mid - 1;
-      }
-    }
-
-    return left;
-  }
-
-  insert(pid: Pid, char: string): void {
+  insert(pid: Pid, char: string): number {
     this.pidMap.set(pidToJson(pid), char);
-    const i = this.sortedIndex(pid);
+    const i = sortedIndex(pid, this.sortedPids);
     this.sortedPids = [...this.sortedPids.slice(0, i), pid, ...this.sortedPids.slice(i)];
+    Logger.log(`document: ${this.asString()}`);
+    return i;
   }
 
-  delete(pid: Pid): void {
+  delete(pid: Pid): number {
     this.pidMap.delete(pidToJson(pid));
-    const i = this.sortedIndex(pid);
-    this.sortedPids = [...this.sortedPids.slice(0, i-1), ...this.sortedPids.slice(i)];
+    const i = sortedIndex(pid, this.sortedPids);
+    this.sortedPids = [...this.sortedPids.slice(0, i), ...this.sortedPids.slice(i)];
+    return i;
   }
 
   asString(): string {
-    return this.sortedPids.map((pid) => this.pidMap.get(pidToJson(pid))).join('');
+    return this.sortedPids.slice(1,-1).map((pid) => this.pidMap.get(pidToJson(pid))).join('');
   }
 }

@@ -50,6 +50,16 @@ suite('Logoot helpers test suite', () => {
   });
 
   suite('Logoot CRDT test suite', () => {
+    test('sortedIndex returns the first index for which the element is greater than the given value', () => {
+      const xs = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90];
+
+      assert.strictEqual(logoot.sortedIndex(-5, xs), 0, '-5');
+      assert.strictEqual(logoot.sortedIndex(5, xs), 1, '5');
+      assert.strictEqual(logoot.sortedIndex(15, xs), 2, '15');
+      assert.strictEqual(logoot.sortedIndex(25, xs), 3, '25');
+      assert.strictEqual(logoot.sortedIndex(95, xs), -1, '95');
+    });
+
     const hostCid: logoot.ClientId = 0n as logoot.ClientId;
     const cid: logoot.ClientId = 1n as logoot.ClientId;
 
@@ -74,7 +84,9 @@ suite('Logoot helpers test suite', () => {
 
     test('Inserting a character', () => {
       const crdt = setupCrdt();
-      const pid = logoot.generatePid(cid, [[40n, hostCid]] as Pid, [[50n, hostCid]] as Pid);
+      const lpid = crdt.sortedPids[5];
+      const rpid = crdt.sortedPids[6];
+      const pid = logoot.generatePid(cid, lpid, rpid);
 
       crdt.insert(pid, 'X');
 
@@ -83,7 +95,7 @@ suite('Logoot helpers test suite', () => {
 
     test('Deleting a character', () => {
       const crdt = setupCrdt();
-      crdt.delete([[50n, hostCid]] as Pid);
+      crdt.delete(crdt.sortedPids[5]);
 
       assert.strictEqual(crdt.asString(), 'hell\nfrom\ninstant!\n');
     });

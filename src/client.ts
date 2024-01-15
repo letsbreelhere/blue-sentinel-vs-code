@@ -42,6 +42,7 @@ class Client {
   }
 
   handleTextChange(e: vscode.TextDocumentChangeEvent) {
+    // TODO: ignore changes if it's from remote CRDT change
     Logger.log(`Document changed: ${e.document.uri.toString()}`);
     if (e.document !== this.document) {
       return;
@@ -51,9 +52,9 @@ class Client {
 
     changes.forEach((change) => {
       if (change.rangeLength === 0) {
-        Logger.log(`Insert: ${change.rangeOffset}, ${change.text}`);
+        // Logger.log(`Insert: ${change.rangeOffset}, ${change.text}`);
       } else if (change.rangeLength > 0) {
-        Logger.log(`Replace: ${change.rangeOffset}, ${change.text}`);
+        // Logger.log(`Replace: ${change.rangeOffset}, ${change.text}`);
         // Handle a replace as a delete followed by an insert
       } else {
         Logger.log(`Unknown change: ${JSON.stringify(change)}`);
@@ -62,6 +63,7 @@ class Client {
   }
 
   close() {
+    Logger.log('Closing client');
     // Unbind event handlers
     this.websocket.removeAllListeners();
     this.subscriptions.forEach((s) => s.dispose());
@@ -153,12 +155,12 @@ class Client {
   async sendTextOperation() {
   }
 
-  async handleInsert(pid: Pid, c: string, clientId: ClientId) {
-    this.crdt.insert(pid, c);
+  handleInsert(pid: Pid, c: string, clientId: ClientId) {
+    return this.crdt.insert(pid, c);
   }
 
-  async handleDelete(pid: Pid, c: string, clientId: ClientId) {
-    this.crdt.delete(pid);
+  handleDelete(pid: Pid, c: string, clientId: ClientId) {
+    return this.crdt.delete(pid);
   }
 
   /*
@@ -173,13 +175,16 @@ class Client {
     ]
   */
   async handleAvailableMessage(data: any[]) {
+    Logger.log(`Available message: ${JSON.stringify(data)}`);
     const [_, isFirst, clientId, sessionShare] = data;
 
     if (isFirst && !this.isHost) {
+      Logger.log('Error: guest was first to connect');
       vscode.window.showErrorMessage('Error: guest was first to connect');
       this.close();
     }
     if (sessionShare) {
+      Logger.log('Error: session share not implemented');
       vscode.window.showErrorMessage('Error: session share not implemented');
       this.close();
     }
@@ -196,7 +201,14 @@ class Client {
     const [opType, c, pid] = op;
     switch (opType) {
       case protocol.OP_INS:
-        this.handleInsert(pid, c, clientId);
+        const i = this.handleInsert(pid, c, clientId);
+        // Insert into document
+        vscode.window.showTextDocument(this.document).then((editor) => {
+          editor.edit((editBuilder) => {
+            const pos = this.document.positionAt(i);
+            editBuilder.insert(pos, c);
+          });
+        });
         break;
       case protocol.OP_DEL:
         this.handleDelete(pid, c, clientId);
@@ -208,11 +220,11 @@ class Client {
   }
 
   async handleMessage(json: any[]) {
-    Logger.log(`received: ${json}`);
     switch (messageTypeFromEnum(json[0])) {
       case 'MSG_TEXT':
         const [_m, op, _b, clientId] = json;
         this.handleText(op, clientId);
+        break;
       case 'MSG_AVAILABLE':
         this.handleAvailableMessage(json);
         break;
@@ -220,7 +232,7 @@ class Client {
         this.handleInitialMessage(json);
         break;
       default:
-        Logger.log(`Received unhandled message ${JSON.stringify(json)}`);
+        vscode.window.showErrorMessage(`Received unhandled message ${JSON.stringify(json)}`);
         break;
     }
   }
@@ -231,8 +243,10 @@ class Client {
       this.sendInfo();
     });
 
-    this.websocket.on('message', (data: any) => {
+    this.websocket.on('message', (data: string) => {
+      Logger.log(`received: ${data}`);
       const json = JSON.parse(data);
+      // TODO: validate json against schema
       this.handleMessage(json);
     });
 
