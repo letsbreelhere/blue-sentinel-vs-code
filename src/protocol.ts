@@ -42,8 +42,8 @@ export const VSCODE_AGENT = 1;
     ]
 */
 
-const OP_INS = 2;
-const OP_DEL = 1;
+export const OP_INS = 2;
+export const OP_DEL = 1;
 
 export function operationEnum(operation: 'OP_INS' | 'OP_DEL'): number {
   return operation === 'OP_INS' ? OP_INS : OP_DEL;

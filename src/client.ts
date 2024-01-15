@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
 import { window, env } from 'vscode';
-import Logger from './logger';
-import { CRDT, Pid, ClientId } from './logoot';
-import { messageEnum, messageTypeFromEnum, ProtocolMessage, VSCODE_AGENT } from './protocol';
 import WebSocket from 'ws';
+
+import Logger from './logger';
+import { messageEnum, messageTypeFromEnum, ProtocolMessage } from './protocol';
+import { CRDT, Pid, ClientId } from './logoot';
+import * as protocol from './protocol';
 
 // eslint-disable-next-line @typescript-eslint/naming-convention
 
@@ -86,7 +88,7 @@ class Client {
       'MSG_INFO',
       false, // session_share is not implemented
       vscode.workspace.getConfiguration('instant-code').get('username'),
-      VSCODE_AGENT
+      protocol.VSCODE_AGENT
     );
   }
 
@@ -151,8 +153,12 @@ class Client {
   async sendTextOperation() {
   }
 
-  async handleInsert(c: string, pid: Pid, clientId: ClientId) {
+  async handleInsert(pid: Pid, c: string, clientId: ClientId) {
     this.crdt.insert(pid, c);
+  }
+
+  async handleDelete(pid: Pid, c: string, clientId: ClientId) {
+    this.crdt.delete(pid);
   }
 
   /*
@@ -186,6 +192,39 @@ class Client {
     }
   }
 
+  async handleText(op: [number, string, Pid], clientId: ClientId) {
+    const [opType, c, pid] = op;
+    switch (opType) {
+      case protocol.OP_INS:
+        this.handleInsert(pid, c, clientId);
+        break;
+      case protocol.OP_DEL:
+        this.handleDelete(pid, c, clientId);
+        break;
+      default:
+        Logger.log(`Received unhandled text operation ${op}`);
+        break;
+    }
+  }
+
+  async handleMessage(json: any[]) {
+    Logger.log(`received: ${json}`);
+    switch (messageTypeFromEnum(json[0])) {
+      case 'MSG_TEXT':
+        const [_m, op, _b, clientId] = json;
+        this.handleText(op, clientId);
+      case 'MSG_AVAILABLE':
+        this.handleAvailableMessage(json);
+        break;
+      case 'MSG_INITIAL':
+        this.handleInitialMessage(json);
+        break;
+      default:
+        Logger.log(`Received unhandled message ${JSON.stringify(json)}`);
+        break;
+    }
+  }
+
   async setupGuest() {
     this.websocket.on('open', () => {
       Logger.log('Client connected');
@@ -193,24 +232,8 @@ class Client {
     });
 
     this.websocket.on('message', (data: any) => {
-      Logger.log(`received: ${data}`);
-      try {
-        const json: any = JSON.parse(data);
-        switch (messageTypeFromEnum(json[0])) {
-          case 'MSG_AVAILABLE':
-            this.handleAvailableMessage(json);
-            break;
-          case 'MSG_INITIAL':
-            this.handleInitialMessage(json);
-            break;
-          default:
-            Logger.log(`Received unhandled message ${data}`);
-            break;
-        }
-      } catch (e) {
-        Logger.log(`Received bad message ${data}`);
-        Logger.log(`Error parsing JSON: ${e}`);
-      }
+      const json = JSON.parse(data);
+      this.handleMessage(json);
     });
 
     this.websocket.on('error', (error: any) => {

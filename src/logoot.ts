@@ -1,6 +1,7 @@
 // Logoot helper functions
 
 import { pid } from "process";
+import Logger from "./logger";
 
 export type ClientId = bigint & { readonly __tag: unique symbol };
 export type Pid = [bigint, ClientId][] & { readonly __tag: unique symbol };
@@ -34,7 +35,7 @@ export function randomBetween(left: bigint, right: bigint): bigint {
   return left + 1n + BigInt(delta);
 }
 
-function pidsEqual(left: Pid, right: Pid): boolean {
+export function pidsEqual(left: Pid, right: Pid): boolean {
   if (left.length !== right.length) {
     return false;
   } else {
@@ -102,6 +103,7 @@ export class CRDT {
     }
   }
 
+  // Find the index of the first PID >= pid, for insertion.
   sortedIndex(pid: Pid): number {
     let left = 0;
     let right = this.sortedPids.length;

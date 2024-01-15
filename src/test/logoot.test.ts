@@ -6,6 +6,13 @@ suite('Logoot helpers test suite', () => {
   const cid: logoot.ClientId = 1n as logoot.ClientId;
   const cid2: logoot.ClientId = 2n as logoot.ClientId;
 
+  test('PID stringification', () => {
+    const p = [[1n, cid], [2n, cid], [3n, cid]] as logoot.Pid;
+
+    assert.strictEqual(logoot.pidToJson(p), `[["1","${cid}"],["2","${cid}"],["3","${cid}"]]`);
+    assert.ok(logoot.pidsEqual(p, logoot.pidFromJson(logoot.pidToJson(p))));
+  });
+
 	test('PIDs are generated preserving order', () => {
     const left: logoot.Pid = [[1n, cid], [2n, cid], [3n, cid]] as logoot.Pid;
     const right: logoot.Pid = [[1n, cid], [2n, cid2], [4n, cid]] as logoot.Pid;
