@@ -34,8 +34,27 @@ export function randomBetween(left: bigint, right: bigint): bigint {
   return left + 1n + BigInt(delta);
 }
 
+function pidsEqual(left: Pid, right: Pid): boolean {
+  if (left.length !== right.length) {
+    return false;
+  } else {
+    for (let i = 0; i < left.length; i++) {
+      if (left[i][0] !== right[i][0] || left[i][1] !== right[i][1]) {
+        return false;
+      }
+    }
+    return true;
+  }
+}
+
 // Generate a PID p between left and right, such that left < p < right.
 export function generatePid(clientId: ClientId, left: Pid, right: Pid): Pid {
+  if (pidsEqual(left, right)) {
+    throw new PidOrderingError('Left PID is equal to right PID');
+  } else if (left > right) {
+    throw new PidOrderingError('Left PID is greater than right PID');
+  }
+
   const p = [];
   for (let i = 0; i < left.length; i++) {
     let decRight;
@@ -53,6 +72,13 @@ export function generatePid(clientId: ClientId, left: Pid, right: Pid): Pid {
     } else {
       p.push(left[i]);
     }
+  }
+
+  const lastLeft = left[left.length - 1];
+  const lastRight = right[right.length - 1];
+
+  if (lastRight[0] === 0n && lastRight[1] === clientId) {
+    throw new PidOrderingError('Adjacent PIDs');
   }
 
   p.push([randomBetween(0n, MAX_PID), clientId]);

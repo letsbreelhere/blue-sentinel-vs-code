@@ -9,16 +9,34 @@ suite('Logoot helpers test suite', () => {
 	test('PIDs are generated preserving order', () => {
     const left: logoot.Pid = [[1n, cid], [2n, cid], [3n, cid]] as logoot.Pid;
     const right: logoot.Pid = [[1n, cid], [2n, cid2], [4n, cid]] as logoot.Pid;
-    const p = logoot.generatePid(cid, left, right);
-    const p2 = logoot.generatePid(cid, p, right);
 
-    assert.ok (left < p);
-    assert.ok (p < p2);
-    assert.ok (p2 < right);
+    // Due to randomness, we'll test a few times
+    for (let i = 0; i < 10; i++) {
+      const p = logoot.generatePid(cid, left, right);
+      const p2 = logoot.generatePid(cid, p, right);
+
+      assert.ok (left < p);
+      assert.ok (p < p2);
+      assert.ok (p2 < right);
+    }
 	});
+
+  test('Attempting to generate a pid between adjacent pids throws an error', () => {
+    const left: logoot.Pid = [[1n, cid], [2n, cid]] as logoot.Pid;
+    const right: logoot.Pid = [[1n, cid], [2n, cid], [0n, cid]] as logoot.Pid;
+
+    assert.throws(() => logoot.generatePid(cid, left, right), logoot.PidOrderingError);
+  });
 
   test('Bad ordering throws an error', () => {
     const left: logoot.Pid = [[1n, cid], [2n, cid], [4n, cid]] as logoot.Pid;
+    const right: logoot.Pid = [[1n, cid], [2n, cid], [3n, cid]] as logoot.Pid;
+
+    assert.throws(() => logoot.generatePid(cid, left, right), logoot.PidOrderingError);
+  });
+
+  test('Bad ordering throws an error - equal PIDs', () => {
+    const left: logoot.Pid = [[1n, cid], [2n, cid], [3n, cid]] as logoot.Pid;
     const right: logoot.Pid = [[1n, cid], [2n, cid], [3n, cid]] as logoot.Pid;
 
     assert.throws(() => logoot.generatePid(cid, left, right), logoot.PidOrderingError);
