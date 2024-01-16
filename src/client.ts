@@ -4,7 +4,8 @@ import WebSocket from 'ws';
 
 import Logger from './logger';
 import { messageEnum, messageTypeFromEnum, ProtocolMessage } from './protocol';
-import { CRDT, Pid, ClientId } from './logoot';
+import { CRDT } from './crdt';
+import { Pid, ClientId } from './pid';
 import * as protocol from './protocol';
 
 // eslint-disable-next-line @typescript-eslint/naming-convention
@@ -121,7 +122,7 @@ class Client {
     this.crdt.initialize({ hostId, uids, lines });
 
     // Set document content from CRDT
-    vscode.window.showTextDocument(this.document).then((editor) => {
+    window.showTextDocument(this.document).then((editor) => {
       editor.edit((editBuilder) => {
         editBuilder.insert(new vscode.Position(0, 0), this.crdt.asString());
       });
@@ -180,12 +181,12 @@ class Client {
 
     if (isFirst && !this.isHost) {
       Logger.log('Error: guest was first to connect');
-      vscode.window.showErrorMessage('Error: guest was first to connect');
+      window.showErrorMessage('Error: guest was first to connect');
       this.close();
     }
     if (sessionShare) {
       Logger.log('Error: session share not implemented');
-      vscode.window.showErrorMessage('Error: session share not implemented');
+      window.showErrorMessage('Error: session share not implemented');
       this.close();
     }
 
@@ -203,11 +204,20 @@ class Client {
       case protocol.OP_INS:
         const i = this.handleInsert(pid, c, clientId);
         // Insert into document
-        vscode.window.showTextDocument(this.document).then((editor) => {
-          editor.edit((editBuilder) => {
-            const pos = this.document.positionAt(i);
-            editBuilder.insert(pos, c);
-          });
+        // TODO: whenever this document is closed, we should also close the client.
+        const editor = window.visibleTextEditors.find(
+          (editor) => editor.document === this.document
+        );
+        if (!editor) {
+          window.showErrorMessage(`Could not find editor for document ${this.document.uri.toString()}`);
+          this.close();
+          return;
+        }
+        editor.edit((editBuilder) => {
+          // The beginning of doc _and_ beginning of the first line comprise the first two PIDs
+          // Since these are not represented in the document, we need to subtract 2 from the index
+          const pos = this.document.positionAt(i - 2);
+          editBuilder.insert(pos, c);
         });
         break;
       case protocol.OP_DEL:
@@ -232,7 +242,7 @@ class Client {
         this.handleInitialMessage(json);
         break;
       default:
-        vscode.window.showErrorMessage(`Received unhandled message ${JSON.stringify(json)}`);
+        window.showErrorMessage(`Received unhandled message ${JSON.stringify(json)}`);
         break;
     }
   }
