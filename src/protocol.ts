@@ -1,6 +1,8 @@
+import * as jsonschema from 'jsonschema';
+
 export type ProtocolMessage = 'MSG_TEXT' | 'MSG_AVAILABLE' | 'MSG_REQUEST' | 'MSG_INITIAL' | 'MSG_INFO' | 'MSG_CONNECT' | 'MSG_DISCONNECT';
 
-const MESSAGE_TYPES: Record<ProtocolMessage, number> = {
+export const MessageTypes = {
   MSG_TEXT: 1,
   MSG_AVAILABLE: 2,
   MSG_REQUEST: 3,
@@ -9,18 +11,6 @@ const MESSAGE_TYPES: Record<ProtocolMessage, number> = {
   MSG_CONNECT: 7,
   MSG_DISCONNECT: 8,
 };
-
-const REVERSE_MESSAGE_TYPES: Record<string, ProtocolMessage> = Object.entries(MESSAGE_TYPES).reduce((acc, [key, value]) => {
-  return { ...acc, [value]: key };
-}, {});
-
-export function messageEnum(message: ProtocolMessage): number {
-  return MESSAGE_TYPES[message];
-}
-
-export function messageTypeFromEnum(messageType: number): ProtocolMessage | undefined {
-  return REVERSE_MESSAGE_TYPES[messageType.toString()];
-}
 
 export const VSCODE_AGENT = 1;
 
@@ -50,3 +40,34 @@ export function operationEnum(operation: 'OP_INS' | 'OP_DEL'): number {
 }
 
 export type ProtocolOperation = ['OP_INS', string, number] | ['OP_DEL', string, number];
+
+const Schema = require('../protocol.schema.json');
+export function isMessageValid(message: any[]): boolean {
+  const validator = new jsonschema.Validator();
+  return validator.validate(message, Schema).valid;
+};
+
+export class ProtocolError extends Error {
+  message: any;
+  validationErrors: jsonschema.ValidationError[];
+
+  constructor(message: any, errors: jsonschema.ValidationError[]) {
+    this.message = message;
+    this.validationErrors = errors;
+    super(`Invalid message\n${JSON.stringify(message)}: ${JSON.stringify(errors)}`);
+  }
+}
+
+export function isValidMessage(message: any): boolean {
+  const validator = new jsonschema.Validator();
+  const result = validator.validate(message, Schema);
+  return result.valid;
+}
+
+export function validateMessage(message: any): void {
+  const validator = new jsonschema.Validator();
+  const result = validator.validate(message, Schema);
+  if (!result.valid) {
+    throw new ProtocolError(message, result.errors);
+  }
+}

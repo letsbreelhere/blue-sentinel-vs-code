@@ -3,10 +3,10 @@ import { window, env } from 'vscode';
 import WebSocket from 'ws';
 
 import Logger from './logger';
-import { messageEnum, messageTypeFromEnum, ProtocolMessage } from './protocol';
 import { CRDT } from './crdt';
 import { Pid, ClientId } from './pid';
 import * as protocol from './protocol';
+import { MessageTypes } from './protocol';
 
 // eslint-disable-next-line @typescript-eslint/naming-convention
 
@@ -72,8 +72,10 @@ class Client {
     this.websocket.close();
   }
 
-  async sendMessage(messageType: ProtocolMessage, ...data: any) {
-    return this.websocket.send(JSON.stringify([messageEnum(messageType), ...data]));
+  async sendMessage(messageType: number, ...data: any) {
+    // Validate message against schema
+    protocol.validateMessage([messageType, ...data]);
+    return this.websocket.send(JSON.stringify([messageType, ...data]));
   }
 
   /*
@@ -88,7 +90,7 @@ class Client {
   */
   async sendInfo() {
     return this.sendMessage(
-      'MSG_INFO',
+      MessageTypes.MSG_INFO,
       false, // session_share is not implemented
       vscode.workspace.getConfiguration('instant-code').get('username'),
       protocol.VSCODE_AGENT
@@ -137,7 +139,7 @@ class Client {
     ]
   */
   async requestInitialBuffer() {
-    return this.sendMessage('MSG_REQUEST');
+    return this.sendMessage(MessageTypes.MSG_REQUEST);
   }
 
   /*
@@ -230,15 +232,16 @@ class Client {
   }
 
   async handleMessage(json: any[]) {
-    switch (messageTypeFromEnum(json[0])) {
-      case 'MSG_TEXT':
+    protocol.validateMessage(json);
+    switch (json[0]) {
+      case MessageTypes.MSG_TEXT:
         const [_m, op, _b, clientId] = json;
         this.handleText(op, clientId);
         break;
-      case 'MSG_AVAILABLE':
+      case MessageTypes.MSG_AVAILABLE:
         this.handleAvailableMessage(json);
         break;
-      case 'MSG_INITIAL':
+      case MessageTypes.MSG_INITIAL:
         this.handleInitialMessage(json);
         break;
       default:

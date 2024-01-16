@@ -57,6 +57,7 @@
   "dependencies": {
     "json-schema-to-typescript": "^13.1.2",
     "json2ts": "^0.0.7",
+    "jsonschema": "^1.4.1",
     "ws": "^8.13.0"
   }
 }
