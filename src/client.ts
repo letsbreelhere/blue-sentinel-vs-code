@@ -158,12 +158,36 @@ class Client {
   async sendTextOperation() {
   }
 
+  editor() {
+    const editor = window.visibleTextEditors.find(
+      (editor) => editor.document === this.document
+    );
+    if (!editor) {
+      window.showErrorMessage(`Could not find editor for document ${this.document.uri.toString()}`);
+      this.close();
+      return null;
+    }
+
+    return editor;
+  }
+
+  // A note on indices:
+  // The beginning of doc _and_ beginning of the first line comprise the first two PIDs
+  // Since these are not represented in the document, we need to subtract 2 from the index
   handleInsert(pid: Pid, c: string, clientId: ClientId) {
-    return this.crdt.insert(pid, c);
+    const i = this.crdt.insert(pid, c);
+    this.editor()?.edit((editBuilder) => {
+      const pos = this.document.positionAt(i - 2);
+      editBuilder.insert(pos, c);
+    });
   }
 
   handleDelete(pid: Pid, c: string, clientId: ClientId) {
-    return this.crdt.delete(pid);
+    const i = this.crdt.delete(pid);
+    this.editor()?.edit((editBuilder) => {
+      const pos = this.document.positionAt(i - 2);
+      editBuilder.delete(new vscode.Range(pos, pos.translate(0, 1)));
+    });
   }
 
   /*
@@ -178,7 +202,6 @@ class Client {
     ]
   */
   async handleAvailableMessage(data: any[]) {
-    Logger.log(`Available message: ${JSON.stringify(data)}`);
     const [_, isFirst, clientId, sessionShare] = data;
 
     if (isFirst && !this.isHost) {
@@ -193,36 +216,23 @@ class Client {
     }
 
     this.clientId = clientId;
-    Logger.log(`Client id: ${this.clientId}`);
 
     if (!this.isHost) {
       this.requestInitialBuffer();
     }
   }
 
-  async handleText(op: [number, string, Pid], clientId: ClientId) {
-    const [opType, c, pid] = op;
-    switch (opType) {
+  async handleText(op: any[], clientId: ClientId) {
+    let _op, c, pid;
+
+    switch (op[0]) {
       case protocol.OP_INS:
+        [_op, c, pid] = op;
         const i = this.handleInsert(pid, c, clientId);
-        // Insert into document
-        // TODO: whenever this document is closed, we should also close the client.
-        const editor = window.visibleTextEditors.find(
-          (editor) => editor.document === this.document
-        );
-        if (!editor) {
-          window.showErrorMessage(`Could not find editor for document ${this.document.uri.toString()}`);
-          this.close();
-          return;
-        }
-        editor.edit((editBuilder) => {
-          // The beginning of doc _and_ beginning of the first line comprise the first two PIDs
-          // Since these are not represented in the document, we need to subtract 2 from the index
-          const pos = this.document.positionAt(i - 2);
-          editBuilder.insert(pos, c);
-        });
         break;
       case protocol.OP_DEL:
+        // 🤦
+        [_op, pid, c] = op;
         this.handleDelete(pid, c, clientId);
         break;
       default:

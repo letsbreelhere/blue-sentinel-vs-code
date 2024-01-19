@@ -83,7 +83,10 @@
           }
         },
         {
-          "type": "string"
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       ],
       "minItems": 5,
@@ -120,24 +123,42 @@
 
   "$defs": {
     "operation": {
+      "$comment": "The order of items is (incorrectly) different between insert and delete. To be fixed once the nvim plugin is updated.",
       "type": "array",
-      "items": [
+      "oneOf": [
         {
-          "enum": [
-            1,
-            2
-          ]
+          "items": [
+            {
+              "const": 1
+            },
+            {
+              "$ref": "#/$defs/pid"
+            },
+            {
+              "type": "string",
+              "maxLength": 1
+            }
+          ],
+          "minItems": 2,
+          "additionalItems": false
         },
         {
-          "type": "string",
-          "maxLength": 1
-        },
-        {
-          "$ref": "#/$defs/pid"
+          "items": [
+            {
+                "const": 2
+            },
+            {
+              "type": "string",
+              "maxLength": 1
+            },
+            {
+              "$ref": "#/$defs/pid"
+            }
+          ],
+          "minItems": 3,
+          "additionalItems": false
         }
-      ],
-      "minItems": 3,
-      "additionalItems": false
+      ]
     },
     "pid": {
       "type": "array",

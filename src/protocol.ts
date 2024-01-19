@@ -34,12 +34,7 @@ export const VSCODE_AGENT = 1;
 
 export const OP_INS = 2;
 export const OP_DEL = 1;
-
-export function operationEnum(operation: 'OP_INS' | 'OP_DEL'): number {
-  return operation === 'OP_INS' ? OP_INS : OP_DEL;
-}
-
-export type ProtocolOperation = ['OP_INS', string, number] | ['OP_DEL', string, number];
+type Operation = typeof OP_INS | typeof OP_DEL;
 
 const Schema = require('../protocol.schema.json');
 export function isMessageValid(message: any[]): boolean {
@@ -52,9 +47,9 @@ export class ProtocolError extends Error {
   validationErrors: jsonschema.ValidationError[];
 
   constructor(message: any, errors: jsonschema.ValidationError[]) {
-    this.message = message;
+    super();
+    this.message = `Invalid message\n${JSON.stringify(message)}: ${JSON.stringify(errors)}`;
     this.validationErrors = errors;
-    super(`Invalid message\n${JSON.stringify(message)}: ${JSON.stringify(errors)}`);
   }
 }
 

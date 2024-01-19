@@ -70,10 +70,14 @@ export function activate(context: vscode.ExtensionContext) {
 		await checkUsernameExists();
 		const url = await promptServerUrl();
 		if (url) {
-			workspace.openTextDocument().then((doc: vscode.TextDocument) => {
-				Client.create(doc, url, false);
-				window.showTextDocument(doc);
-			});
+			const doc = await workspace.openTextDocument();
+      const client = await Client.create(doc, url, false);
+      window.showTextDocument(doc);
+      workspace.onDidCloseTextDocument((doc: vscode.TextDocument) => {
+        if (doc.uri.toString() === url.toString()) {
+          client.close();
+        }
+      });
 		}
 	}));
 }
