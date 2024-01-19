@@ -62,6 +62,10 @@ export class CRDT {
     this.sortedPids.push([[initial.uids[initial.uids.length - 1], initial.hostId]] as Pid); // Represents the end of the document
   }
 
+  pidAt(i: number): Pid {
+    return this.sortedPids[i] as Pid;
+  }
+
   insert(p: Pid, char: string): number {
     this.pidMap.set(pid.toJson(p), char);
     const i = sortedIndex(p, this.sortedPids);
@@ -74,6 +78,10 @@ export class CRDT {
     const i = sortedIndex(p, this.sortedPids);
     this.sortedPids = [...this.sortedPids.slice(0, i), ...this.sortedPids.slice(i+1)];
     return i;
+  }
+
+  charAt(p: Pid): string | undefined {
+    return this.pidMap.get(pid.toJson(p));
   }
 
   asString(strict: boolean = false): string {

@@ -48,7 +48,13 @@ export class ProtocolError extends Error {
 
   constructor(message: any, errors: jsonschema.ValidationError[]) {
     super();
-    this.message = `Invalid message\n${JSON.stringify(message)}: ${JSON.stringify(errors)}`;
+    let stringified;
+    try {
+      stringified = JSON.stringify(message);
+    } catch (e) {
+      stringified = message;
+    }
+    this.message = `Invalid message\n${stringified}: ${JSON.stringify(errors)}`;
     this.validationErrors = errors;
   }
 }

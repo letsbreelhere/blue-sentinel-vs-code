@@ -4,6 +4,7 @@ import WebSocket from 'ws';
 
 import Logger from './logger';
 import { CRDT } from './crdt';
+import * as pid from './pid';
 import { Pid, ClientId } from './pid';
 import * as protocol from './protocol';
 import { MessageTypes } from './protocol';
@@ -13,11 +14,13 @@ import { MessageTypes } from './protocol';
 class Client {
   websocket: WebSocket;
   isHost: boolean;
-  clientId: number | undefined;
+  clientId: ClientId | undefined;
   bufferName: string | undefined;
+  buffer: [number, number] | undefined;
   crdt: CRDT = new CRDT();
   document: vscode.TextDocument;
   subscriptions: vscode.Disposable[] = [];
+  activeEdit: { kind: 'insert' | 'delete', range: vscode.Range, text: string } | undefined;
 
   static sockets = new Map<string, Client>();
 
@@ -42,25 +45,76 @@ class Client {
     this.subscriptions.push(vscode.workspace.onDidChangeTextDocument((e) => this.handleTextChange(e)));
   }
 
-  handleTextChange(e: vscode.TextDocumentChangeEvent) {
-    // TODO: ignore changes if it's from remote CRDT change
-    Logger.log(`Document changed: ${e.document.uri.toString()}`);
+  async sendInsert(p: Pid, c: string) {
+    Logger.log(`Sending insert: ${p} ${c}`);
+    return this.sendMessage(MessageTypes.MSG_TEXT, [protocol.OP_INS, c, pid.serializable(p)], this.buffer!, this.clientId!);
+  }
+
+  async sendDelete(p: Pid, c: string) {
+    Logger.log(`Sending delete: ${p} ${c}`);
+    return this.sendMessage(MessageTypes.MSG_TEXT, [protocol.OP_DEL, pid.serializable(p), c], this.buffer!, this.clientId!);
+  }
+
+  async insertFromContentChange(change: vscode.TextDocumentContentChangeEvent) {
+    const pos = this.document.positionAt(change.rangeOffset);
+    const promises = change.text.split('').map(async (c, i) => {
+      let previousPid = this.crdt.sortedPids[0];
+      if (i > 0) {
+        previousPid = this.crdt.pidAt(this.document.offsetAt(pos.translate(0, i - 1)));
+      }
+      let nextPid = this.crdt.sortedPids[this.crdt.sortedPids.length - 1];
+      if (i < change.text.length - 1) {
+        nextPid = this.crdt.pidAt(this.document.offsetAt(pos.translate(0, i)));
+      }
+      const p = pid.generate(this.clientId!, previousPid, nextPid);
+      Logger.log(`Inserting ${c} at ${pos.translate(0, i)} with PID ${pid.show(p)}`);
+      this.crdt.insert(p, c);
+      await this.sendInsert(p, c);
+    });
+    await promises.reduce((p, c) => p.then(() => c), Promise.resolve());
+  }
+
+  async deleteFromContentChange(change: vscode.TextDocumentContentChangeEvent) {
+    const deletedIndices = Array(change.rangeLength).fill(0).map((_, i) => i + change.rangeOffset);
+    const deletedPids = deletedIndices.map((i) => this.crdt.pidAt(i));
+    const promises = deletedPids.map(async (p) => {
+      await this.sendDelete(p, this.crdt.charAt(p)!);
+      this.crdt.delete(p);
+    });
+    await promises.reduce((p, c) => p.then(() => c), Promise.resolve());
+  }
+
+  async handleTextChange(e: vscode.TextDocumentChangeEvent) {
+    Logger.log(`Text changed: ${JSON.stringify(e)}`);
     if (e.document !== this.document) {
       return;
     }
 
     const changes = e.contentChanges;
 
-    changes.forEach((change) => {
+    const promises = changes.map(async (change) => {
       if (change.rangeLength === 0) {
-        // Logger.log(`Insert: ${change.rangeOffset}, ${change.text}`);
+        if (this.activeEdit?.kind === 'insert' && change.rangeOffset === this.activeEdit.range.start.character) {
+          Logger.log(`Ignoring insert`);
+          return;
+        }
+
+        await this.insertFromContentChange(change);
       } else if (change.rangeLength > 0) {
-        // Logger.log(`Replace: ${change.rangeOffset}, ${change.text}`);
+        if (this.activeEdit?.kind === 'delete' && change.range.isEqual(this.activeEdit.range) && change.text === '') {
+          Logger.log(`Ignoring delete`);
+          return;
+        }
+
         // Handle a replace as a delete followed by an insert
+        await this.deleteFromContentChange(change);
+        await this.insertFromContentChange(change);
       } else {
         Logger.log(`Unknown change: ${JSON.stringify(change)}`);
       }
     });
+
+    await promises.reduce((p, c) => p.then(() => c), Promise.resolve());
   }
 
   close() {
@@ -73,21 +127,10 @@ class Client {
   }
 
   async sendMessage(messageType: number, ...data: any) {
-    // Validate message against schema
     protocol.validateMessage([messageType, ...data]);
     return this.websocket.send(JSON.stringify([messageType, ...data]));
   }
 
-  /*
-    The info message by the client when it first connects.
-
-    [
-      MSG_INFO, // message type [integer]
-      session_share, // client request session share? [boolean]
-      username, // client name [string]
-      agent, // client agent [integer]
-    ]
-  */
   async sendInfo() {
     return this.sendMessage(
       MessageTypes.MSG_INFO,
@@ -97,31 +140,18 @@ class Client {
     );
   }
 
-  /*
-    The initial message sent by a client to set the initial data in buffers.
-    [
-      MSG_INITIAL, // message type [integer]
-            buffer_name, // [string]
-            [
-                bufnr, // buffer number in creator client [integer] - **arbitrary in vscode**
-                client_id // client id [integer]
-            ],  // buffer unique identifier
-
-            pids, // list of pids of the initial content [integer[]]
-            content, // list of lines with the initial content [string[]]
-    ]
-  */
   async sendInitialBuffer() {
   }
 
   async handleInitialMessage(data: any[]) {
-    const [_, bufferName, [_bufnr, hostId], uids, lines] = data;
+    const [_, bufferName, [bufnr, hostId], uids, lines] = data;
 
     this.bufferName = bufferName;
+    this.buffer = [bufnr, hostId];
     Logger.log(`Buffer name: ${this.bufferName}`);
 
-    // Setup CRDT with initial content
-    this.crdt.initialize({ hostId, uids, lines });
+    const bigUids = uids.map((u: any) => BigInt(u));
+    this.crdt.initialize({ hostId, uids: bigUids, lines });
 
     // Set document content from CRDT
     window.showTextDocument(this.document).then((editor) => {
@@ -131,31 +161,8 @@ class Client {
     });
   }
 
-  /*
-    The request message. This is sent when a client **joins** a server. It asks for current data. The server relays this message to an already connected client.
-
-    [
-      MSG_REQUEST, // message type [integer]
-    ]
-  */
   async requestInitialBuffer() {
     return this.sendMessage(MessageTypes.MSG_REQUEST);
-  }
-
-  /*
-    The text message. It describes individual character operation.
-
-    [
-      MSG_TEXT, // message type [integer]
-            op, // text character operation [operation]
-            [
-                bufnr, // buffer number in creator client [integer]
-                client_id // client id [integer]
-            ],  // buffer unique identifier
-            client_id, // client id of sender [integer]
-    ]
-  */
-  async sendTextOperation() {
   }
 
   editor() {
@@ -174,18 +181,29 @@ class Client {
   // A note on indices:
   // The beginning of doc _and_ beginning of the first line comprise the first two PIDs
   // Since these are not represented in the document, we need to subtract 2 from the index
-  handleInsert(pid: Pid, c: string, clientId: ClientId) {
+  async handleRemoteInsert(pid: Pid, c: string, clientId: ClientId) {
     const i = this.crdt.insert(pid, c);
-    this.editor()?.edit((editBuilder) => {
-      const pos = this.document.positionAt(i - 2);
+    const pos = this.document.positionAt(i - 2);
+    this.activeEdit = {
+      kind: 'insert',
+      range: new vscode.Range(pos, pos),
+      text: c,
+    };
+    await this.editor()?.edit((editBuilder) => {
       editBuilder.insert(pos, c);
     });
+    this.activeEdit = undefined;
   }
 
-  handleDelete(pid: Pid, c: string, clientId: ClientId) {
+  handleRemoteDelete(pid: Pid, c: string, clientId: ClientId) {
     const i = this.crdt.delete(pid);
+    const pos = this.document.positionAt(i - 2);
+    this.activeEdit = {
+      kind: 'delete',
+      range: new vscode.Range(pos, pos.translate(0, 1)),
+      text: '',
+    };
     this.editor()?.edit((editBuilder) => {
-      const pos = this.document.positionAt(i - 2);
       editBuilder.delete(new vscode.Range(pos, pos.translate(0, 1)));
     });
   }
@@ -215,7 +233,7 @@ class Client {
       this.close();
     }
 
-    this.clientId = clientId;
+    this.clientId = clientId as ClientId;
 
     if (!this.isHost) {
       this.requestInitialBuffer();
@@ -228,12 +246,12 @@ class Client {
     switch (op[0]) {
       case protocol.OP_INS:
         [_op, c, pid] = op;
-        const i = this.handleInsert(pid, c, clientId);
+        const i = this.handleRemoteInsert(pid, c, clientId);
         break;
       case protocol.OP_DEL:
         // 🤦
         [_op, pid, c] = op;
-        this.handleDelete(pid, c, clientId);
+        this.handleRemoteDelete(pid, c, clientId);
         break;
       default:
         Logger.log(`Received unhandled text operation ${op}`);

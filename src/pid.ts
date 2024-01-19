@@ -11,6 +11,10 @@ export class PidOrderingError extends Error {
   }
 }
 
+export function serializable(pid: Pid): [number, number][] {
+  return pid.map((pid) => [Number(pid[0]), Number(pid[1])]);
+}
+
 export function toJson(pids: Pid): string {
   // JSON doesn't support bigint, so we have to convert to string.
   return JSON.stringify(pids.map((pid) => [pid[0].toString(), pid[1].toString()]));
@@ -59,7 +63,8 @@ export function generate(clientId: ClientId, left: Pid, right: Pid): Pid {
   for (let i = 0; i < left.length; i++) {
     let decRight;
     if (right.length > i) {
-      decRight = [right[i][0] - 1n, right[i][1]];
+      const d: bigint = right[i][0] - 1n;
+      decRight = [d, right[i][1]];
     } else {
       decRight = [MAX_PID, clientId];
     }
