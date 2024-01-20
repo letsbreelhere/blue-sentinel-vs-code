@@ -17,7 +17,7 @@ class Client {
   clientId: ClientId | undefined;
   bufferName: string | undefined;
   buffer: [number, number] | undefined;
-  crdt: CRDT = new CRDT();
+  crdt: CRDT | undefined;
   document: vscode.TextDocument;
   subscriptions: vscode.Disposable[] = [];
   activeEdit: { kind: 'insert' | 'delete', range: vscode.Range, text: string } | undefined;
@@ -58,17 +58,11 @@ class Client {
   async insertFromContentChange(change: vscode.TextDocumentContentChangeEvent) {
     const pos = this.document.positionAt(change.rangeOffset);
     const promises = change.text.split('').map(async (c, i) => {
-      let previousPid = this.crdt.sortedPids[0];
-      if (i > 0) {
-        previousPid = this.crdt.pidAt(this.document.offsetAt(pos.translate(0, i - 1)));
-      }
-      let nextPid = this.crdt.sortedPids[this.crdt.sortedPids.length - 1];
-      if (i < change.text.length - 1) {
-        nextPid = this.crdt.pidAt(this.document.offsetAt(pos.translate(0, i)));
-      }
-      const p = pid.generate(this.clientId!, previousPid, nextPid);
-      Logger.log(`Inserting ${c} at ${pos.translate(0, i)} with PID ${pid.show(p)}`);
-      this.crdt.insert(p, c);
+      // PID 0 is the beginning of the _document_, but the beginning of the first _line_ is PID 1.
+      const offset = this.document.offsetAt(pos.translate(0, i));
+      const p = this.crdt!.pidForInsert(this.clientId!, offset);
+      Logger.log(`Inserting ${c} at ${offset} with PID ${pid.show(p)}`);
+      this.crdt!.insert(p, c);
       await this.sendInsert(p, c);
     });
     await promises.reduce((p, c) => p.then(() => c), Promise.resolve());
@@ -76,16 +70,15 @@ class Client {
 
   async deleteFromContentChange(change: vscode.TextDocumentContentChangeEvent) {
     const deletedIndices = Array(change.rangeLength).fill(0).map((_, i) => i + change.rangeOffset);
-    const deletedPids = deletedIndices.map((i) => this.crdt.pidAt(i));
+    const deletedPids = deletedIndices.map((i) => this.crdt!.pidAt(i));
     const promises = deletedPids.map(async (p) => {
-      await this.sendDelete(p, this.crdt.charAt(p)!);
-      this.crdt.delete(p);
+      await this.sendDelete(p, this.crdt!.charAt(p)!);
+      this.crdt!.delete(p);
     });
     await promises.reduce((p, c) => p.then(() => c), Promise.resolve());
   }
 
   async handleTextChange(e: vscode.TextDocumentChangeEvent) {
-    Logger.log(`Text changed: ${JSON.stringify(e)}`);
     if (e.document !== this.document) {
       return;
     }
@@ -151,12 +144,12 @@ class Client {
     Logger.log(`Buffer name: ${this.bufferName}`);
 
     const bigUids = uids.map((u: any) => BigInt(u));
-    this.crdt.initialize({ hostId, uids: bigUids, lines });
+    this.crdt = new CRDT({ hostId, uids: bigUids, lines });
 
     // Set document content from CRDT
     window.showTextDocument(this.document).then((editor) => {
       editor.edit((editBuilder) => {
-        editBuilder.insert(new vscode.Position(0, 0), this.crdt.asString());
+        editBuilder.insert(new vscode.Position(0, 0), this.crdt!.asString());
       });
     });
   }
@@ -178,12 +171,9 @@ class Client {
     return editor;
   }
 
-  // A note on indices:
-  // The beginning of doc _and_ beginning of the first line comprise the first two PIDs
-  // Since these are not represented in the document, we need to subtract 2 from the index
   async handleRemoteInsert(pid: Pid, c: string, clientId: ClientId) {
-    const i = this.crdt.insert(pid, c);
-    const pos = this.document.positionAt(i - 2);
+    const i = this.crdt!.insert(pid, c);
+    const pos = this.document.positionAt(i);
     this.activeEdit = {
       kind: 'insert',
       range: new vscode.Range(pos, pos),
@@ -196,8 +186,8 @@ class Client {
   }
 
   handleRemoteDelete(pid: Pid, c: string, clientId: ClientId) {
-    const i = this.crdt.delete(pid);
-    const pos = this.document.positionAt(i - 2);
+    const i = this.crdt!.delete(pid);
+    const pos = this.document.positionAt(i);
     this.activeEdit = {
       kind: 'delete',
       range: new vscode.Range(pos, pos.translate(0, 1)),
@@ -208,17 +198,6 @@ class Client {
     });
   }
 
-  /*
-    The available message sent by the server in response to the client.
-
-    [
-            MSG_AVAILABLE, // message type [integer]
-            is_first, // first client to connect to the server? [boolean]
-            client_id, // unique client id assigned by the server [integer]
-            session_share, // server in session share mode? [boolean]
-
-    ]
-  */
   async handleAvailableMessage(data: any[]) {
     const [_, isFirst, clientId, sessionShare] = data;
 

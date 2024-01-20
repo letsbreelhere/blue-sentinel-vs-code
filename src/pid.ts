@@ -2,7 +2,7 @@ export type ClientId = bigint & { readonly __tag: unique symbol };
 export type Pid = [bigint, ClientId][] & { readonly __tag: unique symbol };
 
 // Chosen by comparison with instant.nvim. Can be adjusted; this is just the PID chosen for the document end marker.
-export const MAX_PID: bigint = 10000000000n;
+export const MAX_PID: bigint = 100000000000n;
 
 export class PidOrderingError extends Error {
   constructor(message: string) {
@@ -51,12 +51,30 @@ export function eq(left: Pid, right: Pid): boolean {
   }
 }
 
+export function lt(left: Pid, right: Pid): boolean {
+  for (let i = 0; i < left.length; i++) {
+    if (right.length <= i) {
+      return false;
+    } else if (left[i][0] < right[i][0]) {
+      return true;
+    } else if (left[i][0] > right[i][0]) {
+      return false;
+    }
+  }
+
+  return false;
+}
+
+export function gt(left: Pid, right: Pid): boolean {
+  return !eq(left, right) && !lt(left, right);
+}
+
 // Generate a PID p between left and right, such that left < p < right.
 export function generate(clientId: ClientId, left: Pid, right: Pid): Pid {
   if (eq(left, right)) {
-    throw new PidOrderingError('Left PID is equal to right PID');
-  } else if (left > right) {
-    throw new PidOrderingError('Left PID is greater than right PID');
+    throw new PidOrderingError(`Left and right PIDs are equal: ${show(left)}`);
+  } else if (gt(left, right)) {
+    throw new PidOrderingError(`Left PID is greater than right PID: ${show(left)} > ${show(right)}`);
   }
 
   const p = [];

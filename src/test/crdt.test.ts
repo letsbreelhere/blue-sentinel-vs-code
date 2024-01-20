@@ -51,29 +51,18 @@ suite('Logoot helpers test suite', () => {
   });
 
   suite('Logoot CRDT test suite', () => {
-    test('sortedIndex returns the first index for which the element is greater than the given value', () => {
-      const xs = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90];
-
-      assert.strictEqual(sortedIndex(5, xs), 1, '5');
-      assert.strictEqual(sortedIndex(15, xs), 2, '15');
-      assert.strictEqual(sortedIndex(25, xs), 3, '25');
-    });
-
     const hostCid: ClientId = 0n as ClientId;
     const cid: ClientId = 1n as ClientId;
 
     const setupCrdt = (): CRDT => {
-      const crdt = new CRDT();
       const lines = ['hello', 'from', 'instant!'];
       const joinedLines = lines.join("\n");
       const uids = joinedLines.split('').map((_, i) => BigInt((i+1)*10 + 1));
-      crdt.initialize({
+      return new CRDT({
         hostId: hostCid,
         uids: [0n, 1n, ...uids, pid.MAX_PID],
         lines,
       });
-
-      return crdt;
     };
 
     test('Initialize CRDT', () => {
@@ -83,8 +72,8 @@ suite('Logoot helpers test suite', () => {
 
     test('Inserting a character', () => {
       const crdt = setupCrdt();
-      const lpid = crdt.sortedPids[6];
-      const rpid = crdt.sortedPids[7];
+      const lpid = crdt.pidAt(4);
+      const rpid = crdt.pidAt(5);
       const p = pid.generate(cid, lpid, rpid);
 
       crdt.insert(p, 'X');
@@ -94,21 +83,19 @@ suite('Logoot helpers test suite', () => {
 
     test('Deleting a character', () => {
       const crdt = setupCrdt();
-      crdt.delete(crdt.sortedPids[6]);
+      crdt.delete(crdt.pidAt(4));
 
       assert.strictEqual(crdt.asString(), 'hell\nfrom\ninstant!');
     });
 
     test('"Integration" test', () => {
-      const crdt = new CRDT();
-
-      crdt.initialize({
+      const crdt = new CRDT({
         hostId: 100n as ClientId,
         uids: [0n, 7134612581n, 10000000000n],
         lines: [""],
       });
 
-      // Obtained from a live client by typing "ABC" and then "x" between "A" and "B".
+      // Obtained from a live client by typing "ABC" and then "x" at the beginning of the document
       const inserts: [string, Pid][] = [
         ["A", [[8323330731n, 100n]] as Pid],
         ["B", [[8946858145n, 100n]] as Pid],
