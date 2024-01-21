@@ -7,12 +7,6 @@ import { Pid } from "./pid";
 // Returns the first index for which the element is greater than the given value
 // Assumes that xs is sorted
 export function sortedIndex(x: Pid, xs: Pid[]): number {
-  const i = xs.findIndex((y) => pid.lt(x, y));
-  if (i === -1) {
-    return xs.length;
-  }
-
-  // We can worry about this later
   let left = 0;
   let right = xs.length - 1;
   while (left < right) {
@@ -62,7 +56,7 @@ export class CRDT {
   }
 
   allPids(): Pid[] {
-    return this.sortedPids;
+    return [this.lowPid, ...this.sortedPids, this.highPid];
   }
 
   pidAt(i: number): Pid {

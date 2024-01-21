@@ -21,7 +21,6 @@ class Client {
   document: vscode.TextDocument;
   subscriptions: vscode.Disposable[] = [];
   activeEdit: { kind: 'insert' | 'delete', range: vscode.Range, text: string } | undefined;
-  initialLock: boolean = false;
 
   static sockets = new Map<string, Client>();
 
@@ -37,9 +36,26 @@ class Client {
     this.isHost = isHost;
     this.document = document;
 
+    if (this.isHost) {
+      this.makeHostCrdt();
+    }
+
     this.setupHooks();
 
     this.subscriptions.push(vscode.workspace.onDidChangeTextDocument((e) => this.handleTextChange(e)));
+  }
+
+  makeHostCrdt() {
+    this.crdt = new CRDT({
+      hostId: 100,
+      pids: [pid.make(0, 0), pid.make(1, 0), pid.make(pid.MAX_PID, 0)],
+      lines: [''],
+    });
+
+    const pids = this.document.getText().split('').map((c: string, i: number) => {
+      const pid = this.crdt!.pidForInsert(100, this.document.offsetAt(new vscode.Position(0, i)));
+      this.crdt!.insert(pid, c);
+    });
   }
 
   async sendInsert(p: Pid, c: string) {
@@ -84,15 +100,13 @@ class Client {
 
     const promises = changes.map(async (change) => {
       if (change.rangeLength === 0) {
-        if (this.initialLock || (this.activeEdit?.kind === 'insert' && change.rangeOffset === this.activeEdit.range.start.character)) {
-          Logger.log(`Ignoring insert`);
+        if (this.activeEdit?.kind === 'insert' && change.rangeOffset === this.activeEdit.range.start.character) {
           return;
         }
 
         await this.insertFromContentChange(change);
       } else if (change.rangeLength > 0) {
         if (this.activeEdit?.kind === 'delete' && change.range.isEqual(this.activeEdit.range) && change.text === '') {
-          Logger.log(`Ignoring delete`);
           return;
         }
 
@@ -109,10 +123,8 @@ class Client {
 
   close() {
     Logger.log('Closing client');
-    // Unbind event handlers
     this.websocket.removeAllListeners();
     this.subscriptions.forEach((s) => s.dispose());
-
     this.websocket.close();
   }
 
@@ -150,11 +162,9 @@ class Client {
 
     this.bufferName = bufferName;
     this.buffer = [bufnr, hostId];
-    Logger.log(`Buffer name: ${this.bufferName}`);
 
     this.crdt = new CRDT({ hostId, pids: pids, lines });
 
-    // Set document content from CRDT
     const str = this.crdt!.asString();
     this.activeEdit = {
       kind: 'insert',
@@ -166,7 +176,6 @@ class Client {
         editBuilder.insert(new vscode.Position(0, 0), str);
       });
     });
-
     this.activeEdit = undefined;
   }
 
@@ -254,6 +263,10 @@ class Client {
     }
   }
 
+  async handleConnectMessage(data: any[]) {
+    const [_, clientId, username] = data;
+  }
+
   async handleMessage(json: any[]) {
     protocol.validateMessage(json);
     switch (json[0]) {
@@ -266,6 +279,9 @@ class Client {
         break;
       case MessageTypes.MSG_INITIAL:
         this.handleInitialMessage(json);
+        break;
+      case MessageTypes.MSG_CONNECT:
+        this.handleConnectMessage(json);
         break;
       case MessageTypes.MSG_REQUEST:
         if (!this.clientId) {
