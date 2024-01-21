@@ -1,6 +1,6 @@
 import * as jsonschema from 'jsonschema';
 
-export type ProtocolMessage = 'MSG_TEXT' | 'MSG_AVAILABLE' | 'MSG_REQUEST' | 'MSG_INITIAL' | 'MSG_INFO' | 'MSG_CONNECT' | 'MSG_DISCONNECT';
+export type ProtocolMessage = 'MSG_TEXT' | 'MSG_AVAILABLE' | 'MSG_REQUEST' | 'MSG_INITIAL' | 'MSG_INFO' | 'MSG_CONNECT' | 'MSG_DISCONNECT' | 'MSG_MARK';
 
 export const MessageTypes = {
   MSG_TEXT: 1,
@@ -10,27 +10,10 @@ export const MessageTypes = {
   MSG_INITIAL: 6,
   MSG_CONNECT: 7,
   MSG_DISCONNECT: 8,
+  MSG_MARK: 10
 };
 
 export const VSCODE_AGENT = 1;
-
-/*
-    An operation can be an character insert operation.
-
-    [
-      OP_INS, // operation type [integer]
-      c, // character to insert [string]
-      new_pid, // pid of inserted character [pid]
-    ]
-
-    An operation can be an character delete operation.
-
-    [
-      OP_DEL, // operation type [integer]
-      c, // character to delete [string]
-      del_pid, // pid of character to delete [pid]
-    ]
-*/
 
 export const OP_INS = 2;
 export const OP_DEL = 1;
