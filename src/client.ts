@@ -5,7 +5,7 @@ import WebSocket from 'ws';
 import Logger from './logger';
 import { CRDT } from './crdt';
 import * as pid from './pid';
-import { Pid, ClientId } from './pid';
+import { Pid } from './pid';
 import * as protocol from './protocol';
 import { MessageTypes } from './protocol';
 
@@ -14,13 +14,14 @@ import { MessageTypes } from './protocol';
 class Client {
   websocket: WebSocket;
   isHost: boolean;
-  clientId: ClientId | undefined;
+  clientId: number | undefined;
   bufferName: string | undefined;
   buffer: [number, number] | undefined;
   crdt: CRDT | undefined;
   document: vscode.TextDocument;
   subscriptions: vscode.Disposable[] = [];
   activeEdit: { kind: 'insert' | 'delete', range: vscode.Range, text: string } | undefined;
+  initialLock: boolean = false;
 
   static sockets = new Map<string, Client>();
 
@@ -36,11 +37,7 @@ class Client {
     this.isHost = isHost;
     this.document = document;
 
-    if (isHost) {
-      this.setupHost();
-    } else {
-      this.setupGuest();
-    }
+    this.setupHooks();
 
     this.subscriptions.push(vscode.workspace.onDidChangeTextDocument((e) => this.handleTextChange(e)));
   }
@@ -87,7 +84,7 @@ class Client {
 
     const promises = changes.map(async (change) => {
       if (change.rangeLength === 0) {
-        if (this.activeEdit?.kind === 'insert' && change.rangeOffset === this.activeEdit.range.start.character) {
+        if (this.initialLock || (this.activeEdit?.kind === 'insert' && change.rangeOffset === this.activeEdit.range.start.character)) {
           Logger.log(`Ignoring insert`);
           return;
         }
@@ -120,6 +117,7 @@ class Client {
   }
 
   async sendMessage(messageType: number, ...data: any) {
+    Logger.log(`Sending message ${messageType}: ${JSON.stringify(data)}`);
     protocol.validateMessage([messageType, ...data]);
     return this.websocket.send(JSON.stringify([messageType, ...data]));
   }
@@ -134,24 +132,42 @@ class Client {
   }
 
   async sendInitialBuffer() {
+    const lines = this.document.getText().split('\n');
+    return this.sendMessage(
+      MessageTypes.MSG_INITIAL,
+      this.document.fileName || 'Untitled',
+      [
+        0,
+        this.clientId!
+      ],
+      this.crdt!.allPids(),
+      lines
+    );
   }
 
   async handleInitialMessage(data: any[]) {
-    const [_, bufferName, [bufnr, hostId], uids, lines] = data;
+    const [_, bufferName, [bufnr, hostId], pids, lines] = data;
 
     this.bufferName = bufferName;
     this.buffer = [bufnr, hostId];
     Logger.log(`Buffer name: ${this.bufferName}`);
 
-    const bigUids = uids.map((u: any) => BigInt(u));
-    this.crdt = new CRDT({ hostId, uids: bigUids, lines });
+    this.crdt = new CRDT({ hostId, pids: pids, lines });
 
     // Set document content from CRDT
-    window.showTextDocument(this.document).then((editor) => {
-      editor.edit((editBuilder) => {
-        editBuilder.insert(new vscode.Position(0, 0), this.crdt!.asString());
+    const str = this.crdt!.asString();
+    this.activeEdit = {
+      kind: 'insert',
+      range: new vscode.Range(0, 0, 0, 0),
+      text: str,
+    },
+    await window.showTextDocument(this.document).then(async (editor) => {
+      await editor.edit((editBuilder) => {
+        editBuilder.insert(new vscode.Position(0, 0), str);
       });
     });
+
+    this.activeEdit = undefined;
   }
 
   async requestInitialBuffer() {
@@ -171,7 +187,7 @@ class Client {
     return editor;
   }
 
-  async handleRemoteInsert(pid: Pid, c: string, clientId: ClientId) {
+  async handleRemoteInsert(pid: Pid, c: string, clientId: number) {
     const i = this.crdt!.insert(pid, c);
     const pos = this.document.positionAt(i);
     this.activeEdit = {
@@ -185,7 +201,7 @@ class Client {
     this.activeEdit = undefined;
   }
 
-  handleRemoteDelete(pid: Pid, c: string, clientId: ClientId) {
+  handleRemoteDelete(pid: Pid, c: string, clientId: number) {
     const i = this.crdt!.delete(pid);
     const pos = this.document.positionAt(i);
     this.activeEdit = {
@@ -212,14 +228,14 @@ class Client {
       this.close();
     }
 
-    this.clientId = clientId as ClientId;
+    this.clientId = clientId;
 
     if (!this.isHost) {
       this.requestInitialBuffer();
     }
   }
 
-  async handleText(op: any[], clientId: ClientId) {
+  async handleText(op: any[], clientId: number) {
     let _op, c, pid;
 
     switch (op[0]) {
@@ -251,13 +267,22 @@ class Client {
       case MessageTypes.MSG_INITIAL:
         this.handleInitialMessage(json);
         break;
+      case MessageTypes.MSG_REQUEST:
+        if (!this.clientId) {
+          Logger.log('Error: received MSG_REQUEST before MSG_AVAILABLE');
+          window.showErrorMessage('Error: received MSG_REQUEST before MSG_AVAILABLE');
+          this.close();
+          return;
+        }
+        this.sendInitialBuffer();
+        break;
       default:
         window.showErrorMessage(`Received unhandled message ${JSON.stringify(json)}`);
         break;
     }
   }
 
-  async setupGuest() {
+  async setupHooks() {
     this.websocket.on('open', () => {
       Logger.log('Client connected');
       this.sendInfo();
@@ -277,10 +302,6 @@ class Client {
     this.websocket.on('close', () => {
       Logger.log('WebSocket connection closed');
     });
-  }
-
-  async setupHost() {
-    throw new Error('Not implemented');
   }
 }
 

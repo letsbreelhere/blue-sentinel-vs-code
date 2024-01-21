@@ -1,5 +1,4 @@
 {
-  "$schema": "http://json-schema.org/draft/2019-09/schema#",
   "type": "array",
   "oneOf": [
     {
@@ -94,11 +93,11 @@
           "$ref": "#/$defs/buffer"
         },
         {
-          "name": "uids",
-          "description": "List of UIDs corresponding to buffer contents",
+          "name": "pids",
+          "description": "List of PIDs in the buffer",
           "type": "array",
           "items": {
-            "type": "integer"
+            "$ref": "#/$defs/pid"
           }
         },
         {
@@ -239,12 +238,12 @@
       "type": "array",
       "items": [
         {
-          "name": "buffer_number",
+          "name": "client_id",
+          "description": "ID of the client that owns the buffer",
           "type": "integer"
         },
         {
-          "name": "client_id",
-          "description": "ID of the client that owns the buffer",
+          "name": "buffer_id",
           "type": "integer"
         }
       ],

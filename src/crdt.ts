@@ -2,7 +2,7 @@
 
 import Logger from "./logger";
 import * as pid from "./pid";
-import { Pid, ClientId } from "./pid";
+import { Pid } from "./pid";
 
 // Returns the first index for which the element is greater than the given value
 // Assumes that xs is sorted
@@ -38,41 +38,38 @@ export class CRDT {
 
   pidMap: Map<string, string> = new Map();
 
-  constructor(initial: { hostId: ClientId, uids: bigint[], lines: string[], }) {
+  constructor(initial: { hostId: number, pids: Pid[], lines: string[], }) {
     const joinedLines: string = initial.lines.join("\n");
+    let pids = initial.pids;
 
-    if (initial.uids.length !== joinedLines.length + 3) {
-      let err = [
-        `Invalid initial content: ${initial.lines}`,
-        `UID count: ${initial.uids.length}`,
-        `Content length: ${joinedLines.length}`,
-      ];
-      throw new Error(err.join("\n"));
-    }
+    this.lowPid = pids[1];
+    this.highPid = pids[pids.length - 1];
 
-    const uids = initial.uids.slice(2, -1);
-
-    this.lowPid = [[initial.uids[1], initial.hostId]] as Pid; // Represents the beginning of the document
+    pids = pids.slice(2, -1);
 
     for (let i = 0; i < joinedLines.length; i++) {
-      const uid: bigint = uids[i];
+      const p: Pid = pids[i];
       const char: string = joinedLines[i];
-      const p: Pid = [[uid, initial.hostId]] as Pid;
-      if (!uid) {
-        console.log(`Invalid UID: ${uid}`);
+      if (!pid) {
+        console.log(`Invalid PID at index ${i}`);
       }
       this.pidMap.set(pid.toJson(p), char);
       this.sortedPids.push(p);
     }
 
-    this.highPid = [[initial.uids[initial.uids.length - 1], initial.hostId]] as Pid; // Represents the beginning of the _first line_
+    console.warn(JSON.stringify({ l: this.lowPid, h: this.highPid}));
+    console.warn(JSON.stringify(this.sortedPids));
+  }
+
+  allPids(): Pid[] {
+    return this.sortedPids;
   }
 
   pidAt(i: number): Pid {
     return this.sortedPids[i] as Pid;
   }
 
-  pidForInsert(clientId: ClientId, offset: number): Pid {
+  pidForInsert(clientId: number, offset: number): Pid {
     if (offset === 0) {
       return pid.generate(clientId, this.lowPid, this.pidAt(0) || this.highPid);
     } else if (offset === this.sortedPids.length) {
@@ -84,10 +81,6 @@ export class CRDT {
 
   pidAfter(i: number): Pid {
     return this.pidAt(i + 1) || this.highPid;
-  }
-
-  eofPid(): Pid {
-    return this.highPid;
   }
 
   insert(p: Pid, char: string): number {
@@ -109,6 +102,6 @@ export class CRDT {
   }
 
   asString(): string {
-    return this.sortedPids.map((p) => this.pidMap.get(pid.toJson(p))).join('');
+    return this.sortedPids.map((p) => this.charAt(p)).join('');
   }
 }

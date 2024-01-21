@@ -1,22 +1,15 @@
 import * as assert from 'assert';
 import { CRDT, sortedIndex } from '../crdt';
-import { Pid, ClientId, PidOrderingError } from '../pid';
+import { Pid, PidOrderingError } from '../pid';
 import * as pid from '../pid';
 
 suite('Logoot helpers test suite', () => {
-  const cid: ClientId = 1n as ClientId;
-  const cid2: ClientId = 2n as ClientId;
-
-  test('PID stringification', () => {
-    const p = [[1n, cid], [2n, cid], [3n, cid]] as Pid;
-
-    assert.strictEqual(pid.toJson(p), `[["1","${cid}"],["2","${cid}"],["3","${cid}"]]`);
-    assert.ok(pid.eq(p, pid.fromJson(pid.toJson(p))));
-  });
+  const cid: number = 1;
+  const cid2: number = 2;
 
 	test('PIDs are generated preserving order', () => {
-    const left: Pid = [[1n, cid], [2n, cid], [3n, cid]] as Pid;
-    const right: Pid = [[1n, cid], [2n, cid2], [4n, cid]] as Pid;
+    const left: Pid = [[1, cid], [2, cid], [3, cid]] as Pid;
+    const right: Pid = [[1, cid], [2, cid2], [4, cid]] as Pid;
 
     // Due to randomness, we'll test a few times
     for (let i = 0; i < 10; i++) {
@@ -30,37 +23,39 @@ suite('Logoot helpers test suite', () => {
 	});
 
   test('Attempting to generate a pid between adjacent pids throws an error', () => {
-    const left: Pid = [[1n, cid], [2n, cid]] as Pid;
-    const right: Pid = [[1n, cid], [2n, cid], [0n, cid]] as Pid;
+    const left: Pid = [[1, cid], [2, cid]] as Pid;
+    const right: Pid = [[1, cid], [2, cid], [0, cid]] as Pid;
 
     assert.throws(() => pid.generate(cid, left, right), PidOrderingError);
   });
 
   test('Bad ordering throws an error', () => {
-    const left: Pid = [[1n, cid], [2n, cid], [4n, cid]] as Pid;
-    const right: Pid = [[1n, cid], [2n, cid], [3n, cid]] as Pid;
+    const left: Pid = [[1, cid], [2, cid], [4, cid]] as Pid;
+    const right: Pid = [[1, cid], [2, cid], [3, cid]] as Pid;
 
     assert.throws(() => pid.generate(cid, left, right), PidOrderingError);
   });
 
   test('Bad ordering throws an error - equal PIDs', () => {
-    const left: Pid = [[1n, cid], [2n, cid], [3n, cid]] as Pid;
-    const right: Pid = [[1n, cid], [2n, cid], [3n, cid]] as Pid;
+    const left: Pid = [[1, cid], [2, cid], [3, cid]] as Pid;
+    const right: Pid = [[1, cid], [2, cid], [3, cid]] as Pid;
 
     assert.throws(() => pid.generate(cid, left, right), PidOrderingError);
   });
 
   suite('Logoot CRDT test suite', () => {
-    const hostCid: ClientId = 0n as ClientId;
-    const cid: ClientId = 1n as ClientId;
+    const hostCid: number = 0;
+    const cid: number = 1;
 
     const setupCrdt = (): CRDT => {
       const lines = ['hello', 'from', 'instant!'];
       const joinedLines = lines.join("\n");
-      const uids = joinedLines.split('').map((_, i) => BigInt((i+1)*10 + 1));
+      const pids = joinedLines.split('').map((_, i) => {
+        return [[(i+1)*10 + 1, hostCid]] as Pid;
+      });
       return new CRDT({
         hostId: hostCid,
-        uids: [0n, 1n, ...uids, pid.MAX_PID],
+        pids: [pid.make(0, hostCid), pid.make(1, hostCid), ...pids, pid.make(pid.MAX_PID, hostCid)],
         lines,
       });
     };
@@ -89,18 +84,19 @@ suite('Logoot helpers test suite', () => {
     });
 
     test('"Integration" test', () => {
+      const hostId = 100 as number;
       const crdt = new CRDT({
-        hostId: 100n as ClientId,
-        uids: [0n, 7134612581n, 10000000000n],
+        hostId,
+        pids: [pid.make(0, hostId), pid.make(7134612581, hostId), pid.make(10000000000, hostId)],
         lines: [""],
       });
 
       // Obtained from a live client by typing "ABC" and then "x" at the beginning of the document
       const inserts: [string, Pid][] = [
-        ["A", [[8323330731n, 100n]] as Pid],
-        ["B", [[8946858145n, 100n]] as Pid],
-        ["C", [[9738148624n, 100n]] as Pid],
-        ["x", [[7517973107n, 100n]] as Pid],
+        ["A", pid.make(8323330731, 100) as Pid],
+        ["B", pid.make(8946858145, 100) as Pid],
+        ["C", pid.make(9738148624, 100) as Pid],
+        ["x", pid.make(7517973107, 100) as Pid],
       ];
 
       inserts.forEach(([c, p]) => {
@@ -108,7 +104,7 @@ suite('Logoot helpers test suite', () => {
       });
 
       assert.equal(crdt.asString(), 'xABC');
-      crdt.delete([[7517973107n, 100n]] as Pid);
+      crdt.delete([[7517973107, 100]] as Pid);
       assert.equal(crdt.asString(), 'ABC');
     });
   });
