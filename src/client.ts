@@ -17,6 +17,10 @@ interface RemoteClient {
   decoration: vscode.TextEditorDecorationType;
 }
 
+function sequence<T>(list: readonly T[], f: (item: T, ix: number) => Promise<void>) {
+  return list.reduce((p, c, i) => p.then(() => f(c, i)), Promise.resolve());
+}
+
 class Client {
   websocket: WebSocket;
   isHost: boolean;
@@ -29,11 +33,15 @@ class Client {
   activeEdit: { kind: 'insert' | 'delete', range: vscode.Range, text: string } | undefined;
   connectedClients = new Map<number, RemoteClient>();
 
-  static sockets = new Map<string, Client>();
+  static openClients = new Map<string, Client>();
+
+  static forDocument(document: vscode.TextDocument): Client | undefined {
+    return Client.openClients.get(document.uri.toString());
+  }
 
   static async create(document: vscode.TextDocument, url: URL, isHost: boolean) {
     const client = new Client(url, isHost, document);
-    Client.sockets.set(document.uri.toString(), client);
+    Client.openClients.set(document.uri.toString(), client);
     return client;
   }
 
@@ -77,7 +85,7 @@ class Client {
 
   async insertFromContentChange(change: vscode.TextDocumentContentChangeEvent) {
     const pos = this.document.positionAt(change.rangeOffset);
-    const promises = change.text.split('').map(async (c, i) => {
+    await sequence(change.text.split(''), async (c, i) => {
       // PID 0 is the beginning of the _document_, but the beginning of the first _line_ is PID 1.
       const offset = this.document.offsetAt(pos.translate(0, i));
       const p = this.crdt!.pidForInsert(this.clientId!, offset);
@@ -85,17 +93,15 @@ class Client {
       this.crdt!.insert(p, c);
       await this.sendInsert(p, c);
     });
-    await promises.reduce((p, c) => p.then(() => c), Promise.resolve());
   }
 
   async deleteFromContentChange(change: vscode.TextDocumentContentChangeEvent) {
     const deletedIndices = Array(change.rangeLength).fill(0).map((_, i) => i + change.rangeOffset);
     const deletedPids = deletedIndices.map((i) => this.crdt!.pidAt(i)!);
-    const promises = deletedPids.map(async (p) => {
+    await sequence(deletedPids, async (p) => {
       await this.sendDelete(p, this.crdt!.charAt(p)!);
       this.crdt!.delete(p);
     });
-    await promises.reduce((p, c) => p.then(() => c), Promise.resolve());
   }
 
   async handleTextChange(e: vscode.TextDocumentChangeEvent) {
@@ -105,7 +111,7 @@ class Client {
 
     const changes = e.contentChanges;
 
-    const promises = changes.map(async (change) => {
+    await sequence(changes, async (change) => {
       if (change.rangeLength === 0) {
         if (this.activeEdit?.kind === 'insert' && change.range.isEqual(this.activeEdit.range)) {
           return;
@@ -124,8 +130,6 @@ class Client {
         Logger.log(`Unknown change: ${JSON.stringify(change)}`);
       }
     });
-
-    await promises.reduce((p, c) => p.then(() => c), Promise.resolve());
   }
 
   close() {
@@ -354,8 +358,9 @@ class Client {
       this.handleMessage(json);
     });
 
-    this.websocket.on('error', (error: any) => {
-      Logger.log(`WebSocket error: ${error}`);
+    this.websocket.on('error', (error: Error) => {
+      window.showErrorMessage(`WebSocket error: ${error.message}`);
+      this.close();
     });
 
     this.websocket.on('close', () => {

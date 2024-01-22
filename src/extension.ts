@@ -80,6 +80,24 @@ export function activate(context: vscode.ExtensionContext) {
       });
 		}
 	}));
+
+  context.subscriptions.push(vscode.commands.registerCommand('instant-code.stopSession', async () => {
+    const document = window.activeTextEditor?.document;
+    if (!document) {
+      window.showErrorMessage('No active document');
+      return;
+    }
+
+    const client = Client.forDocument(document);
+
+    if (!client) {
+      window.showErrorMessage('No active session for this document');
+      return;
+    } else {
+      client.close();
+      window.showInformationMessage('Session stopped');
+    }
+  }));
 }
 
 export function deactivate() { }

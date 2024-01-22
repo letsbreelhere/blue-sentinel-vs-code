@@ -15,11 +15,15 @@
     "commands": [
       {
         "command": "instant-code.startSession",
-        "title": "Instant: Start Session"
+        "title": "Start Instant Session"
       },
       {
         "command": "instant-code.joinSession",
-        "title": "Instant: Join Session"
+        "title": "Join Instant Session"
+      },
+      {
+        "command": "instant-code.stopSession",
+        "title": "Stop Instant Session"
       }
     ],
     "configuration": {
