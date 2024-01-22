@@ -52,7 +52,7 @@ export function activate(context: vscode.ExtensionContext) {
 		if (url) {
 			let document = window.activeTextEditor?.document;
 			if (!document) {
-				workspace.openTextDocument().then((doc: vscode.TextDocument) => {
+				await workspace.openTextDocument().then((doc: vscode.TextDocument) => {
 					document = doc;
 				});
 			}

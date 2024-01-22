@@ -11,6 +11,18 @@ import { MessageTypes } from './protocol';
 
 // eslint-disable-next-line @typescript-eslint/naming-convention
 
+interface RemoteClient {
+  username: string;
+  documentOffset: number | undefined;
+}
+
+const decoration = window.createTextEditorDecorationType({
+  after: {
+    contentText: '👋',
+    color: 'red',
+  },
+});
+
 class Client {
   websocket: WebSocket;
   isHost: boolean;
@@ -21,7 +33,7 @@ class Client {
   document: vscode.TextDocument;
   subscriptions: vscode.Disposable[] = [];
   activeEdit: { kind: 'insert' | 'delete', range: vscode.Range, text: string } | undefined;
-  connectedClients = new Map<number, string>();
+  connectedClients = new Map<number, RemoteClient>();
 
   static sockets = new Map<string, Client>();
 
@@ -101,7 +113,7 @@ class Client {
 
     const promises = changes.map(async (change) => {
       if (change.rangeLength === 0) {
-        if (this.activeEdit?.kind === 'insert' && change.rangeOffset === this.activeEdit.range.start.character) {
+        if (this.activeEdit?.kind === 'insert' && change.range.isEqual(this.activeEdit.range)) {
           return;
         }
 
@@ -197,9 +209,21 @@ class Client {
     return editor;
   }
 
+  updateRemoteClientOffset(clientId: number, offset: number) {
+    const client = this.connectedClients.get(clientId);
+    if (!client) {
+      Logger.log(`Error: could not find client ${clientId}`);
+      return;
+    }
+    client.documentOffset = offset;
+  }
+
   async handleRemoteInsert(pid: Pid, c: string, clientId: number) {
     const i = this.crdt!.insert(pid, c);
+
+    this.updateRemoteClientOffset(clientId, i);
     const pos = this.document.positionAt(i);
+
     this.activeEdit = {
       kind: 'insert',
       range: new vscode.Range(pos, pos),
@@ -213,6 +237,7 @@ class Client {
 
   handleRemoteDelete(pid: Pid, c: string, clientId: number) {
     const i = this.crdt!.delete(pid);
+    this.updateRemoteClientOffset(clientId, i);
     const pos = this.document.positionAt(i);
     this.activeEdit = {
       kind: 'delete',
@@ -267,7 +292,7 @@ class Client {
   async handleConnectMessage(data: any[]) {
     const [_, clientId, username] = data;
 
-    this.connectedClients.set(clientId, username);
+    this.connectedClients.set(clientId, { username, documentOffset: undefined });
     window.showInformationMessage(`${username} joined. Total connected: ${this.connectedClients.size}`);
   }
 
