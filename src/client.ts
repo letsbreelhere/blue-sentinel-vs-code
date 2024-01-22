@@ -74,12 +74,10 @@ class Client {
   }
 
   async sendInsert(p: Pid, c: string) {
-    Logger.log(`Sending insert: ${p} ${c}`);
     return this.sendMessage(MessageTypes.MSG_TEXT, [protocol.OP_INS, c, pid.serializable(p)], this.buffer!, this.clientId!);
   }
 
   async sendDelete(p: Pid, c: string) {
-    Logger.log(`Sending delete: ${p} ${c}`);
     return this.sendMessage(MessageTypes.MSG_TEXT, [protocol.OP_DEL, c, pid.serializable(p)], this.buffer!, this.clientId!);
   }
 
@@ -89,7 +87,6 @@ class Client {
       // PID 0 is the beginning of the _document_, but the beginning of the first _line_ is PID 1.
       const offset = this.document.offsetAt(pos.translate(0, i));
       const p = this.crdt!.pidForInsert(this.clientId!, offset);
-      Logger.log(`Inserting ${c} at ${offset} with PID ${pid.show(p)}`);
       this.crdt!.insert(p, c);
       await this.sendInsert(p, c);
     });
@@ -127,20 +124,19 @@ class Client {
         await this.deleteFromContentChange(change);
         await this.insertFromContentChange(change);
       } else {
-        Logger.log(`Unknown change: ${JSON.stringify(change)}`);
       }
     });
   }
 
   close() {
-    Logger.log('Closing client');
     this.websocket.removeAllListeners();
     this.subscriptions.forEach((s) => s.dispose());
-    this.websocket.close();
+    if (this.websocket.readyState === WebSocket.OPEN) {
+      this.websocket.close();
+    }
   }
 
   async sendMessage(messageType: number, ...data: any) {
-    Logger.log(`Sending message ${messageType}: ${JSON.stringify(data)}`);
     protocol.validateMessage([messageType, ...data]);
     return this.websocket.send(JSON.stringify([messageType, ...data]));
   }
@@ -208,11 +204,7 @@ class Client {
   }
 
   updateRemoteClientOffset(clientId: number, offset: number) {
-    const client = this.connectedClients.get(clientId);
-    if (!client) {
-      Logger.log(`Error: could not find client ${clientId}`);
-      return;
-    }
+    const client = this.connectedClients.get(clientId)!;
     client.documentOffset = offset;
     const pos = this.document.positionAt(offset);
 
@@ -257,12 +249,10 @@ class Client {
     const [_, isFirst, clientId, sessionShare] = data;
 
     if (isFirst && !this.isHost) {
-      Logger.log('Error: guest was first to connect');
       window.showErrorMessage('Error: guest was first to connect');
       this.close();
     }
     if (sessionShare) {
-      Logger.log('Error: session share not implemented');
       window.showErrorMessage('Error: session share not implemented');
       this.close();
     }
@@ -287,7 +277,6 @@ class Client {
         this.handleRemoteDelete(pid, c, clientId);
         break;
       default:
-        Logger.log(`Received unhandled text operation ${op}`);
         break;
     }
   }
@@ -332,8 +321,7 @@ class Client {
         this.handleDisconnectMessage(json);
       case MessageTypes.MSG_REQUEST:
         if (!this.clientId) {
-          Logger.log('Error: received MSG_REQUEST before MSG_AVAILABLE');
-          window.showErrorMessage('Error: received MSG_REQUEST before MSG_AVAILABLE');
+          window.showErrorMessage('Received MSG_REQUEST before MSG_AVAILABLE');
           this.close();
           return;
         }
@@ -347,12 +335,10 @@ class Client {
 
   async setupHooks() {
     this.websocket.on('open', () => {
-      Logger.log('Client connected');
       this.sendInfo();
     });
 
     this.websocket.on('message', (data: string) => {
-      Logger.log(`received: ${data}`);
       const json = JSON.parse(data);
       // TODO: validate json against schema
       this.handleMessage(json);
@@ -364,7 +350,7 @@ class Client {
     });
 
     this.websocket.on('close', () => {
-      Logger.log('WebSocket connection closed');
+      this.close();
     });
   }
 }

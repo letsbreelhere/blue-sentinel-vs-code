@@ -65,9 +65,6 @@ export class CRDT {
       }
     } else if (offset === this.sortedPids.length) {
       const p = this.pidAt(this.sortedPids.length - 1)!;
-      if (this.sortedPids.some((p2) => pid.lt(p, p2))) {
-        Logger.log("huh?");
-      }
       return pid.generate(clientId, this.pidAt(this.sortedPids.length - 1)!, this.highPid);
     } else {
       return pid.generate(clientId, this.pidAt(offset - 1)!, this.pidAt(offset)!);
