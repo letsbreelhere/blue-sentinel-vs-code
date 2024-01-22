@@ -177,31 +177,12 @@
 
   "$defs": {
     "operation": {
-      "$comment": "The order of items is (incorrectly) different between insert and delete. To be fixed once the nvim plugin is updated.",
       "type": "array",
       "oneOf": [
         {
-          "$comment": "Delete",
           "items": [
             {
-              "const": 1
-            },
-            {
-              "$ref": "#/$defs/pid"
-            },
-            {
-              "type": "string",
-              "maxLength": 1
-            }
-          ],
-          "minItems": 2,
-          "additionalItems": false
-        },
-        {
-          "$comment": "Insert",
-          "items": [
-            {
-                "const": 2
+                "enum": [1, 2]
             },
             {
               "type": "string",

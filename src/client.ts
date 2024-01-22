@@ -72,7 +72,7 @@ class Client {
 
   async sendDelete(p: Pid, c: string) {
     Logger.log(`Sending delete: ${p} ${c}`);
-    return this.sendMessage(MessageTypes.MSG_TEXT, [protocol.OP_DEL, pid.serializable(p), c], this.buffer!, this.clientId!);
+    return this.sendMessage(MessageTypes.MSG_TEXT, [protocol.OP_DEL, c, pid.serializable(p)], this.buffer!, this.clientId!);
   }
 
   async insertFromContentChange(change: vscode.TextDocumentContentChangeEvent) {
@@ -279,8 +279,7 @@ class Client {
         const i = this.handleRemoteInsert(pid, c, clientId);
         break;
       case protocol.OP_DEL:
-        // 🤦
-        [_op, pid, c] = op;
+        [_op, c, pid] = op;
         this.handleRemoteDelete(pid, c, clientId);
         break;
       default:
