@@ -352,7 +352,6 @@ class Client {
 
     this.websocket.on('message', (data: string) => {
       const json = JSON.parse(data);
-      // TODO: validate json against schema
       this.handleMessage(json);
     });
 

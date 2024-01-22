@@ -26,34 +26,19 @@ export function activate(context: vscode.ExtensionContext) {
 		return Promise.resolve(parsedUrl);
 	}
 
-	async function checkUsernameExists(): Promise<boolean> {
-		if (vscode.workspace.getConfiguration('instant-code').get('username')) {
-			return Promise.resolve(true);
-		}
-
-    await window.showErrorMessage('Please set your username in the Instant Code extension settings');
-		return false;
-	}
-
 	async function promptServerUrl(): Promise<URL | undefined> {
 		const url = await window.showInputBox({ prompt: 'Enter server URL' });
 		return parseSessionUrl(url);
 	}
 
-	context.subscriptions.push(vscode.commands.registerCommand('instant-code.startServer', async (port: number | undefined) => {
-		await checkUsernameExists();
-		const usedPort = port || DEFAULT_PORT;
-		const server = new Server(usedPort);
-	}));
-
 	context.subscriptions.push(vscode.commands.registerCommand('instant-code.startSession', async () => {
-		await checkUsernameExists();
 		const url = await promptServerUrl();
 		if (url) {
 			let document = window.activeTextEditor?.document;
 			if (!document) {
-				await workspace.openTextDocument().then((doc: vscode.TextDocument) => {
+				await workspace.openTextDocument().then(async (doc: vscode.TextDocument) => {
 					document = doc;
+          await window.showTextDocument(doc);
 				});
 			}
 
@@ -67,7 +52,6 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('instant-code.joinSession', async () => {
-		await checkUsernameExists();
 		const url = await promptServerUrl();
 		if (url) {
 			const doc = await workspace.openTextDocument();
@@ -97,6 +81,26 @@ export function activate(context: vscode.ExtensionContext) {
       client.close();
       window.showInformationMessage('Session stopped');
     }
+  }));
+
+  context.subscriptions.push(vscode.commands.registerCommand('instant-code.startServer', async () => {
+    const portConfig: string | undefined = vscode.workspace.getConfiguration('instant-code').get('port');
+    let port = portConfig ? parseInt(portConfig) : await window.showInputBox({ prompt: 'Enter port for server' }).then((port: string | undefined) => port && parseInt(port));
+    if (!port) {
+      window.showErrorMessage('No port specified');
+      return;
+    }
+    const server = Server.create(port);
+  }));
+
+  context.subscriptions.push(vscode.commands.registerCommand('instant-code.stopServer', async () => {
+    const server = Server.singleton;
+    if (!server) {
+      window.showErrorMessage('No server running');
+      return;
+    }
+    server.close();
+    window.showInformationMessage('Instant Code server stopped');
   }));
 }
 

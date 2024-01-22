@@ -20,7 +20,7 @@ export const OP_DEL = 1;
 type Operation = typeof OP_INS | typeof OP_DEL;
 
 const Schema = require('../protocol.schema.json');
-export function isMessageValid(message: any[]): boolean {
+export function isMessageValid(message: any): boolean {
   const validator = new jsonschema.Validator();
   return validator.validate(message, Schema).valid;
 };
