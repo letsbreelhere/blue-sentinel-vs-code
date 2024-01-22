@@ -15,15 +15,23 @@
     "commands": [
       {
         "command": "instant-code.startSession",
-        "title": "Start Instant Session"
+        "title": "Start Instant Session..."
       },
       {
         "command": "instant-code.joinSession",
-        "title": "Join Instant Session"
+        "title": "Join Instant Session..."
       },
       {
         "command": "instant-code.stopSession",
         "title": "Stop Instant Session"
+      },
+      {
+        "command": "instant-code.startServer",
+        "title": "Start Instant Server..."
+      },
+      {
+        "command": "instant-code.stopServer",
+        "title": "Stop Instant Server"
       }
     ],
     "configuration": {
@@ -32,7 +40,7 @@
         "instant-code.username": {
           "type": "string",
           "default": "",
-          "description": "Your unique username"
+          "description": "Your username, displayed to other users in the session"
         }
       }
     }

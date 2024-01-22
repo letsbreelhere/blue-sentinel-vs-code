@@ -8,6 +8,7 @@ import * as pid from './pid';
 import { Pid } from './pid';
 import * as protocol from './protocol';
 import { MessageTypes } from './protocol';
+import { readFile } from 'fs';
 
 // eslint-disable-next-line @typescript-eslint/naming-convention
 
@@ -142,10 +143,21 @@ class Client {
   }
 
   async sendInfo() {
+    let username = vscode.workspace.getConfiguration('instant-code').get('username');
+    if (!username) {
+      const birds = require('../json/birds.json');
+      const adjectives = require('../json/adjectives.json');
+
+      const bird = birds[Math.floor(Math.random() * birds.length)];
+      const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
+
+      username = `${adjective}-${bird}`;
+    }
+
     return this.sendMessage(
       MessageTypes.MSG_INFO,
       false, // session_share is not implemented
-      vscode.workspace.getConfiguration('instant-code').get('username'),
+      username,
       protocol.VSCODE_AGENT
     );
   }
