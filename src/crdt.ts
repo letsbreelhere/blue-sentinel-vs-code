@@ -43,15 +43,9 @@ export class CRDT {
     for (let i = 0; i < joinedLines.length; i++) {
       const p: Pid = pids[i];
       const char: string = joinedLines[i];
-      if (!pid) {
-        console.log(`Invalid PID at index ${i}`);
-      }
       this.pidMap.set(pid.toJson(p), char);
       this.sortedPids.push(p);
     }
-
-    console.warn(JSON.stringify({ l: this.lowPid, h: this.highPid}));
-    console.warn(JSON.stringify(this.sortedPids));
   }
 
   allPids(): Pid[] {
