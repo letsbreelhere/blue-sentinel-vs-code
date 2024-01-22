@@ -21,6 +21,7 @@ class Client {
   document: vscode.TextDocument;
   subscriptions: vscode.Disposable[] = [];
   activeEdit: { kind: 'insert' | 'delete', range: vscode.Range, text: string } | undefined;
+  connectedClients = new Map<number, string>();
 
   static sockets = new Map<string, Client>();
 
@@ -83,7 +84,7 @@ class Client {
 
   async deleteFromContentChange(change: vscode.TextDocumentContentChangeEvent) {
     const deletedIndices = Array(change.rangeLength).fill(0).map((_, i) => i + change.rangeOffset);
-    const deletedPids = deletedIndices.map((i) => this.crdt!.pidAt(i));
+    const deletedPids = deletedIndices.map((i) => this.crdt!.pidAt(i)!);
     const promises = deletedPids.map(async (p) => {
       await this.sendDelete(p, this.crdt!.charAt(p)!);
       this.crdt!.delete(p);
@@ -265,6 +266,16 @@ class Client {
 
   async handleConnectMessage(data: any[]) {
     const [_, clientId, username] = data;
+
+    this.connectedClients.set(clientId, username);
+    window.showInformationMessage(`${username} joined. Total connected: ${this.connectedClients.size}`);
+  }
+
+  async handleDisconnectMessage(data: any[]) {
+    const [_, clientId, username] = data;
+
+    this.connectedClients.delete(clientId);
+    window.showInformationMessage(`${username} left. Total connected: ${this.connectedClients.size}`);
   }
 
   async handleMessage(json: any[]) {
@@ -283,6 +294,8 @@ class Client {
       case MessageTypes.MSG_CONNECT:
         this.handleConnectMessage(json);
         break;
+      case MessageTypes.MSG_DISCONNECT:
+        this.handleDisconnectMessage(json);
       case MessageTypes.MSG_REQUEST:
         if (!this.clientId) {
           Logger.log('Error: received MSG_REQUEST before MSG_AVAILABLE');

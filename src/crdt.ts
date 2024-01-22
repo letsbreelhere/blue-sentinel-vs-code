@@ -4,23 +4,22 @@ import Logger from "./logger";
 import * as pid from "./pid";
 import { Pid } from "./pid";
 
-// Returns the first index for which the element is greater than the given value
+// Returns the last index for which the element is less than the given value
 // Assumes that xs is sorted
 export function sortedIndex(x: Pid, xs: Pid[]): number {
   let left = 0;
-  let right = xs.length - 1;
+  let right = xs.length;
+
   while (left < right) {
     const mid = Math.floor((left + right) / 2);
-    if (pid.eq(xs[mid], x)) {
-      return mid;
-    } else if (pid.lt(xs[mid], x)) {
+    if (pid.lt(xs[mid], x)) {
       left = mid + 1;
     } else {
       right = mid;
     }
   }
 
-  return right;
+  return left;
 }
 
 export class CRDT {
@@ -59,17 +58,25 @@ export class CRDT {
     return [this.lowPid, ...this.sortedPids, this.highPid];
   }
 
-  pidAt(i: number): Pid {
+  pidAt(i: number): Pid | undefined {
     return this.sortedPids[i] as Pid;
   }
 
   pidForInsert(clientId: number, offset: number): Pid {
     if (offset === 0) {
-      return pid.generate(clientId, this.lowPid, this.pidAt(0) || this.highPid);
+      if (this.sortedPids.length === 0) {
+        return pid.generate(clientId, this.lowPid, this.highPid);
+      } else {
+        return pid.generate(clientId, this.lowPid, this.pidAt(0)!);
+      }
     } else if (offset === this.sortedPids.length) {
-      return pid.generate(clientId, this.pidAt(this.sortedPids.length - 1) || this.lowPid, this.highPid);
+      const p = this.pidAt(this.sortedPids.length - 1)!;
+      if (this.sortedPids.some((p2) => pid.lt(p, p2))) {
+        Logger.log("huh?");
+      }
+      return pid.generate(clientId, this.pidAt(this.sortedPids.length - 1)!, this.highPid);
     } else {
-      return pid.generate(clientId, this.pidAt(offset - 1), this.pidAt(offset));
+      return pid.generate(clientId, this.pidAt(offset - 1)!, this.pidAt(offset)!);
     }
   }
 
