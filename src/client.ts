@@ -14,14 +14,8 @@ import { MessageTypes } from './protocol';
 interface RemoteClient {
   username: string;
   documentOffset: number | undefined;
+  decoration: vscode.TextEditorDecorationType;
 }
-
-const decoration = window.createTextEditorDecorationType({
-  after: {
-    contentText: '👋',
-    color: 'red',
-  },
-});
 
 class Client {
   websocket: WebSocket;
@@ -216,6 +210,12 @@ class Client {
       return;
     }
     client.documentOffset = offset;
+    const pos = this.document.positionAt(offset);
+
+    // Decorate line with 👋
+    const line = this.document.lineAt(pos.line);
+    const range = new vscode.Range(new vscode.Position(pos.line, 0), new vscode.Position(pos.line, line.text.length));
+    this.editor()?.setDecorations(client.decoration, [{ range }]);
   }
 
   async handleRemoteInsert(pid: Pid, c: string, clientId: number) {
@@ -292,7 +292,13 @@ class Client {
   async handleConnectMessage(data: any[]) {
     const [_, clientId, username] = data;
 
-    this.connectedClients.set(clientId, { username, documentOffset: undefined });
+    const decoration = window.createTextEditorDecorationType({
+      after: {
+        contentText: `        ${username} 👋`,
+        color: new vscode.ThemeColor('editorLineNumber.foreground'),
+      },
+    });
+    this.connectedClients.set(clientId, { username, documentOffset: undefined, decoration });
     window.showInformationMessage(`${username} joined. Total connected: ${this.connectedClients.size}`);
   }
 
