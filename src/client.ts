@@ -246,16 +246,21 @@ class Client {
 
   async handleRemoteDelete(pid: Pid, c: string, clientId: number) {
     const i = this.crdt!.delete(pid);
-    this.updateRemoteClientOffset(clientId, i);
     const pos = this.document.positionAt(i);
+    const isDeletingLine: boolean = c === '\n';
+    let range = new vscode.Range(pos, pos.translate(0, 1));
+    if (isDeletingLine) {
+      range = new vscode.Range(pos, pos.translate(1, 0));
+    }
     this.activeEdit = {
       kind: 'delete',
-      range: new vscode.Range(pos, pos.translate(0, 1)),
+      range,
       text: '',
     };
     await this.editor()?.edit((editBuilder) => {
-      editBuilder.delete(new vscode.Range(pos, pos.translate(0, 1)));
+      editBuilder.delete(range);
     });
+    this.updateRemoteClientOffset(clientId, this.document.offsetAt(range.start));
     this.activeEdit = undefined;
   }
 
@@ -299,10 +304,6 @@ class Client {
     const [_, clientId, username] = data;
 
     const decoration = window.createTextEditorDecorationType({
-      backgroundColor: new vscode.ThemeColor('editorLineNumber.foreground'),
-      before: {
-        backgroundColor: new vscode.ThemeColor('editorLineNumber.foreground'),
-      },
       after: {
         contentText: `        ${username} 👋`,
         color: new vscode.ThemeColor('editorLineNumber.foreground'),
@@ -357,6 +358,7 @@ class Client {
     });
 
     this.websocket.on('message', (data: string) => {
+      Logger.log(`Received message: ${data}`);
       const json = JSON.parse(data);
       this.handleMessage(json);
     });

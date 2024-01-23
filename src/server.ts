@@ -3,6 +3,7 @@ import WebSocket from 'ws';
 import { MessageTypes, isMessageValid } from './protocol';
 import { window } from 'vscode';
 import { IncomingMessage } from 'http';
+import * as vscode from 'vscode';
 
 interface ClientState {
   ws: WebSocket;
@@ -27,7 +28,6 @@ class Server {
   }
 
   handleMessage(ws: WebSocket, message: string, clientId: number) {
-    Logger.log(`Message from client ${clientId}: ${message}`);
     let parsed;
     try {
       parsed = JSON.parse(message);
@@ -151,7 +151,14 @@ class Server {
     });
 
     this.wss.on('listening', function listening() {
-      window.showInformationMessage(`Server started at port ${port}`);
+      window.showInformationMessage(`Server started at port ${port}`, 'OK', 'Copy URL').then((choice) => {
+        if (choice === 'OK') {
+          return;
+        } else if (choice === 'Copy URL') {
+          const url = `ws://0.0.0.0:${port}`;
+          vscode.env.clipboard.writeText(url);
+        }
+      });
     });
 
     this.wss.on('error', function error(err) {

@@ -79,7 +79,7 @@ export function activate(context: vscode.ExtensionContext) {
       return;
     } else {
       client.close();
-      window.showInformationMessage('Session stopped');
+      window.setStatusBarMessage('Session stopped');
     }
   }));
 
@@ -88,6 +88,10 @@ export function activate(context: vscode.ExtensionContext) {
     let port = portConfig ? parseInt(portConfig) : await window.showInputBox({ prompt: 'Enter port for server' }).then((port: string | undefined) => port && parseInt(port));
     if (!port) {
       window.showErrorMessage('No port specified');
+      return;
+    }
+    if (Server.singleton) {
+      window.showErrorMessage(`Server already started at ${Server.singleton.port}`);
       return;
     }
     const server = Server.create(port);
@@ -100,7 +104,7 @@ export function activate(context: vscode.ExtensionContext) {
       return;
     }
     server.close();
-    window.showInformationMessage('Instant Code server stopped');
+    window.setStatusBarMessage('Instant Code server stopped');
   }));
 }
 
