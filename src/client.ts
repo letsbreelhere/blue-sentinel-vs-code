@@ -27,12 +27,13 @@ class Client {
   isHost: boolean;
   clientId: number | undefined;
   bufferName: string | undefined;
-  buffer: [number, number] | undefined;
+  buffer: [number, number] = [0, 0];
   crdt: CRDT | undefined;
   document: vscode.TextDocument;
   subscriptions: vscode.Disposable[] = [];
   activeEdit: { kind: 'insert' | 'delete', range: vscode.Range, text: string } | undefined;
   connectedClients = new Map<number, RemoteClient>();
+  operationQueue: any[] = [];
 
   static openClients = new Map<string, Client>();
 
@@ -75,11 +76,11 @@ class Client {
   }
 
   async sendInsert(p: Pid, c: string) {
-    return this.sendMessage(MessageTypes.MSG_TEXT, [protocol.OP_INS, c, pid.serializable(p)], this.buffer!, this.clientId!);
+    return this.sendMessage(MessageTypes.MSG_TEXT, [protocol.OP_INS, c, pid.serializable(p)], this.buffer, this.clientId!);
   }
 
   async sendDelete(p: Pid, c: string) {
-    return this.sendMessage(MessageTypes.MSG_TEXT, [protocol.OP_DEL, c, pid.serializable(p)], this.buffer!, this.clientId!);
+    return this.sendMessage(MessageTypes.MSG_TEXT, [protocol.OP_DEL, c, pid.serializable(p)], this.buffer, this.clientId!);
   }
 
   async insertFromContentChange(change: vscode.TextDocumentContentChangeEvent) {
@@ -96,9 +97,9 @@ class Client {
   async deleteFromContentChange(change: vscode.TextDocumentContentChangeEvent) {
     const deletedIndices = Array(change.rangeLength).fill(0).map((_, i) => i + change.rangeOffset);
     const deletedPids = deletedIndices.map((i) => this.crdt!.pidAt(i)!);
-    await sequence(deletedPids, async (p) => {
+    await sequence(deletedPids, async (p, i) => {
       await this.sendDelete(p, this.crdt!.charAt(p)!);
-      this.crdt!.delete(p);
+      await this.crdt!.delete(p);
     });
   }
 
@@ -117,7 +118,7 @@ class Client {
 
         await this.insertFromContentChange(change);
       } else if (change.rangeLength > 0) {
-        if (this.activeEdit?.kind === 'delete' && change.range.isEqual(this.activeEdit.range) && change.text === '') {
+        if (this.activeEdit?.kind === 'delete' && change.range.isEqual(this.activeEdit.range)) {
           return;
         }
 
@@ -243,7 +244,7 @@ class Client {
     this.activeEdit = undefined;
   }
 
-  handleRemoteDelete(pid: Pid, c: string, clientId: number) {
+  async handleRemoteDelete(pid: Pid, c: string, clientId: number) {
     const i = this.crdt!.delete(pid);
     this.updateRemoteClientOffset(clientId, i);
     const pos = this.document.positionAt(i);
@@ -252,9 +253,10 @@ class Client {
       range: new vscode.Range(pos, pos.translate(0, 1)),
       text: '',
     };
-    this.editor()?.edit((editBuilder) => {
+    await this.editor()?.edit((editBuilder) => {
       editBuilder.delete(new vscode.Range(pos, pos.translate(0, 1)));
     });
+    this.activeEdit = undefined;
   }
 
   async handleAvailableMessage(data: any[]) {
@@ -297,20 +299,24 @@ class Client {
     const [_, clientId, username] = data;
 
     const decoration = window.createTextEditorDecorationType({
+      backgroundColor: new vscode.ThemeColor('editorLineNumber.foreground'),
+      before: {
+        backgroundColor: new vscode.ThemeColor('editorLineNumber.foreground'),
+      },
       after: {
         contentText: `        ${username} 👋`,
         color: new vscode.ThemeColor('editorLineNumber.foreground'),
       },
     });
     this.connectedClients.set(clientId, { username, documentOffset: undefined, decoration });
-    window.showInformationMessage(`${username} joined. Total connected: ${this.connectedClients.size}`);
+    window.setStatusBarMessage(`${username} joined. Total connected: ${this.connectedClients.size}`);
   }
 
   async handleDisconnectMessage(data: any[]) {
     const [_, clientId, username] = data;
 
     this.connectedClients.delete(clientId);
-    window.showInformationMessage(`${username} left. Total connected: ${this.connectedClients.size}`);
+    window.setStatusBarMessage(`${username} left. Total connected: ${this.connectedClients.size}`);
   }
 
   async handleMessage(json: any[]) {
@@ -318,7 +324,7 @@ class Client {
     switch (json[0]) {
       case MessageTypes.MSG_TEXT:
         const [_m, op, _b, clientId] = json;
-        this.handleText(op, clientId);
+        this.operationQueue.push([op, clientId]);
         break;
       case MessageTypes.MSG_AVAILABLE:
         this.handleAvailableMessage(json);
@@ -363,6 +369,15 @@ class Client {
     this.websocket.on('close', () => {
       this.close();
     });
+
+    setInterval(() => {
+      if (this.activeEdit || this.operationQueue.length === 0) {
+        return;
+      }
+
+      const [op, clientId] = this.operationQueue.shift()!;
+      this.handleText(op, clientId);
+    }, 1);
   }
 }
 
