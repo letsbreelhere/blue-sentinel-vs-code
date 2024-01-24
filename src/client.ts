@@ -250,7 +250,7 @@ class Client {
     const isDeletingLine: boolean = c === '\n';
     let range = new vscode.Range(pos, pos.translate(0, 1));
     if (isDeletingLine) {
-      range = new vscode.Range(pos, pos.translate(1, 0));
+      range = new vscode.Range(pos, pos.translate(1, 0).with(undefined, 0));
     }
     this.activeEdit = {
       kind: 'delete',
