@@ -1,6 +1,6 @@
 {
-  "name": "instant-code",
-  "displayName": "instant-code",
+  "name": "blue-sentinel",
+  "displayName": "blue-sentinel",
   "description": "",
   "version": "0.0.1",
   "engines": {
@@ -14,30 +14,30 @@
   "contributes": {
     "commands": [
       {
-        "command": "instant-code.startSession",
+        "command": "blue-sentinel.startSession",
         "title": "Start Instant Session..."
       },
       {
-        "command": "instant-code.joinSession",
+        "command": "blue-sentinel.joinSession",
         "title": "Join Instant Session..."
       },
       {
-        "command": "instant-code.stopSession",
+        "command": "blue-sentinel.stopSession",
         "title": "Stop Instant Session"
       },
       {
-        "command": "instant-code.startServer",
+        "command": "blue-sentinel.startServer",
         "title": "Start Instant Server..."
       },
       {
-        "command": "instant-code.stopServer",
+        "command": "blue-sentinel.stopServer",
         "title": "Stop Instant Server"
       }
     ],
     "configuration": {
       "title": "Instant Code",
       "properties": {
-        "instant-code.username": {
+        "blue-sentinel.username": {
           "type": "string",
           "default": "",
           "description": "Your username, displayed to other users in the session"

@@ -1,6 +1,6 @@
 class Logger {
   static log(...messages: any[]) {
-    console.log("[instant-code]", ...messages);
+    console.log("[blue-sentinel]", ...messages);
   }
 }
 

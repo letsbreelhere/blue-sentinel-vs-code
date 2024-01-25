@@ -12,7 +12,7 @@ difference is that it provides interop with Neovim using the
 
 ## Extension Settings
 
-- `instant-code.username`: Your username as it appears to others in a sharing session.
+- `blue-sentinel.username`: Your username as it appears to others in a sharing session.
 
 ## Known Issues
 

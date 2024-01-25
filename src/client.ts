@@ -144,7 +144,7 @@ class Client {
   }
 
   async sendInfo() {
-    let username = vscode.workspace.getConfiguration('instant-code').get('username');
+    let username = vscode.workspace.getConfiguration('blue-sentinel').get('username');
     if (!username) {
       const birds = require('../json/birds.json');
       const adjectives = require('../json/adjectives.json');

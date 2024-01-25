@@ -31,7 +31,7 @@ export function activate(context: vscode.ExtensionContext) {
 		return parseSessionUrl(url);
 	}
 
-	context.subscriptions.push(vscode.commands.registerCommand('instant-code.startSession', async () => {
+	context.subscriptions.push(vscode.commands.registerCommand('blue-sentinel.startSession', async () => {
 		const url = await promptServerUrl();
 		if (url) {
 			let document = window.activeTextEditor?.document;
@@ -51,7 +51,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('instant-code.joinSession', async () => {
+	context.subscriptions.push(vscode.commands.registerCommand('blue-sentinel.joinSession', async () => {
 		const url = await promptServerUrl();
 		if (url) {
 			const doc = await workspace.openTextDocument();
@@ -65,7 +65,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}));
 
-  context.subscriptions.push(vscode.commands.registerCommand('instant-code.stopSession', async () => {
+  context.subscriptions.push(vscode.commands.registerCommand('blue-sentinel.stopSession', async () => {
     const document = window.activeTextEditor?.document;
     if (!document) {
       window.showErrorMessage('No active document');
@@ -83,8 +83,8 @@ export function activate(context: vscode.ExtensionContext) {
     }
   }));
 
-  context.subscriptions.push(vscode.commands.registerCommand('instant-code.startServer', async () => {
-    const portConfig: string | undefined = vscode.workspace.getConfiguration('instant-code').get('port');
+  context.subscriptions.push(vscode.commands.registerCommand('blue-sentinel.startServer', async () => {
+    const portConfig: string | undefined = vscode.workspace.getConfiguration('blue-sentinel').get('port');
     let port = portConfig ? parseInt(portConfig) : await window.showInputBox({ prompt: 'Enter port for server' }).then((port: string | undefined) => port && parseInt(port));
     if (!port) {
       window.showErrorMessage('No port specified');
@@ -97,7 +97,7 @@ export function activate(context: vscode.ExtensionContext) {
     const server = Server.create(port);
   }));
 
-  context.subscriptions.push(vscode.commands.registerCommand('instant-code.stopServer', async () => {
+  context.subscriptions.push(vscode.commands.registerCommand('blue-sentinel.stopServer', async () => {
     const server = Server.singleton;
     if (!server) {
       window.showErrorMessage('No server running');
