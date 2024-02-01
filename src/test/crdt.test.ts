@@ -47,7 +47,7 @@ suite('CRDT', () => {
     const hostId = 100 as number;
     const crdt = new CRDT({
       hostId,
-      pids: [pid.make(0, hostId), pid.make(7134612581, hostId), pid.make(10000000000, hostId)],
+      pids: [pid.make(0, hostId), pid.make(7134612581, hostId), pid.make(pid.MAX_PID, hostId)],
       lines: [""],
     });
 

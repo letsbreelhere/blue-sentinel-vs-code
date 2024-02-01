@@ -1,7 +1,7 @@
 export type Pid = [number, number][] & { readonly __tag: unique symbol };
 
 // Chosen by comparison with instant.nvim. Can be adjusted; this is just the PID chosen for the document end marker.
-export const MAX_PID: number = 10000000000;
+export const MAX_PID: number = 2**16 - 1;
 
 export class PidOrderingError extends Error {
   constructor(message: string) {
