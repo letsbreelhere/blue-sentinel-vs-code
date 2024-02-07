@@ -1,8 +1,8 @@
-# instant.nvim...for VS Code
+# Cross-editor collaboration for VS Code
 
 This provides collaborative editing similar to Live Share. Its primary
-difference is that it provides interop with Neovim using the
-[instant.nvim](https://github.com/letsbreelhere/instant.nvim/) plugin.
+difference is that it is intended to provide interoperability with Neovim using the
+a shared WebSocket protocol based on Logoot.
 
 ## Features
 
