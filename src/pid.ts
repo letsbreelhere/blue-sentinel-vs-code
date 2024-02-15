@@ -93,15 +93,11 @@ export function generate(clientId: number, left: Pid, right: Pid): Pid {
     throw new PidOrderingError(`(2) Left PID is greater than right PID: ${show(left)} > ${show(right)}`);
   }
 
-  for (let i = 0; i < left.length; i++) {
+  for (let i = 0; i < Math.min(left.length, right.length); i++) {
     const l = left[i];
     const r = right[i];
 
-    if (!r) {
-      const maxPid = make(MAX_PID, 0);
-      const subPid = generate(clientId, left.slice(i, -1) as Pid, maxPid);
-      const p = [...left.slice(0, i), ...subPid] as Pid;
-    } else if (pidElemLt(r, l)) {
+    if (pidElemLt(r, l)) {
       throw new PidOrderingError(`(3) Left PID is greater than right PID: ${show(left)} > ${show(right)}`);
     } else if (pidElemEq(l, r)) {
       continue;
