@@ -5,56 +5,56 @@ import Server from './server';
 import Client from './client';
 
 export function activate(context: vscode.ExtensionContext) {
-	const DEFAULT_PORT: number = 8080;
+  const DEFAULT_PORT: number = 8080;
 
-	async function parseSessionUrl(url: string | undefined): Promise<URL | undefined> {
-		if (!url) {
-			return Promise.resolve(undefined);
-		}
+  async function parseSessionUrl(url: string | undefined): Promise<URL | undefined> {
+    if (!url) {
+      return Promise.resolve(undefined);
+    }
 
-		let attachUrl = url;
-		if (!attachUrl.match(/^[a-zA-Z]+?:\/\//)) {
-			attachUrl = `ws://${attachUrl}`;
-		}
+    let attachUrl = url;
+    if (!attachUrl.match(/^[a-zA-Z]+?:\/\//)) {
+      attachUrl = `ws://${attachUrl}`;
+    }
 
-		const parsedUrl = new URL(attachUrl);
+    const parsedUrl = new URL(attachUrl);
 
-		if (!parsedUrl.port) {
-			parsedUrl.port = DEFAULT_PORT.toString();
-		}
+    if (!parsedUrl.port) {
+      parsedUrl.port = DEFAULT_PORT.toString();
+    }
 
-		return Promise.resolve(parsedUrl);
-	}
+    return Promise.resolve(parsedUrl);
+  }
 
-	async function promptServerUrl(): Promise<URL | undefined> {
-		const url = await window.showInputBox({ prompt: 'Enter server URL' });
-		return parseSessionUrl(url);
-	}
+  async function promptServerUrl(): Promise<URL | undefined> {
+    const url = await window.showInputBox({ prompt: 'Enter server URL' });
+    return parseSessionUrl(url);
+  }
 
-	context.subscriptions.push(vscode.commands.registerCommand('blue-sentinel.startSession', async () => {
-		const url = await promptServerUrl();
-		if (url) {
-			let document = window.activeTextEditor?.document;
-			if (!document) {
-				await workspace.openTextDocument().then(async (doc: vscode.TextDocument) => {
-					document = doc;
+  context.subscriptions.push(vscode.commands.registerCommand('blue-sentinel.startSession', async () => {
+    const url = await promptServerUrl();
+    if (url) {
+      let document = window.activeTextEditor?.document;
+      if (!document) {
+        await workspace.openTextDocument().then(async (doc: vscode.TextDocument) => {
+          document = doc;
           await window.showTextDocument(doc);
-				});
-			}
+        });
+      }
 
-			if (!document) {
-				window.showErrorMessage("No active document, and couldn't create a new one");
-				return;
-			}
+      if (!document) {
+        window.showErrorMessage("No active document, and couldn't create a new one");
+        return;
+      }
 
-			Client.create(document, url, true);
-		}
-	}));
+      Client.create(document, url, true);
+    }
+  }));
 
-	context.subscriptions.push(vscode.commands.registerCommand('blue-sentinel.joinSession', async () => {
-		const url = await promptServerUrl();
-		if (url) {
-			const doc = await workspace.openTextDocument();
+  context.subscriptions.push(vscode.commands.registerCommand('blue-sentinel.joinSession', async () => {
+    const url = await promptServerUrl();
+    if (url) {
+      const doc = await workspace.openTextDocument();
       const client = await Client.create(doc, url, false);
       window.showTextDocument(doc);
       workspace.onDidCloseTextDocument((doc: vscode.TextDocument) => {
@@ -62,8 +62,8 @@ export function activate(context: vscode.ExtensionContext) {
           client.close();
         }
       });
-		}
-	}));
+    }
+  }));
 
   context.subscriptions.push(vscode.commands.registerCommand('blue-sentinel.stopSession', async () => {
     const document = window.activeTextEditor?.document;

@@ -221,7 +221,6 @@ class Client {
     client.documentOffset = offset;
     const pos = this.document.positionAt(offset);
 
-    // Decorate line with 👋
     const line = this.document.lineAt(pos.line);
     const range = new vscode.Range(new vscode.Position(pos.line, 0), new vscode.Position(pos.line, line.text.length));
     this.editor()?.setDecorations(client.decoration, [{ range }]);
@@ -316,6 +315,7 @@ class Client {
   async handleDisconnectMessage(data: any[]) {
     const [_, clientId, username] = data;
 
+    this.editor()?.setDecorations(this.connectedClients.get(clientId)!.decoration, []);
     this.connectedClients.delete(clientId);
     window.setStatusBarMessage(`${username} left. Total connected: ${this.connectedClients.size}`);
   }
