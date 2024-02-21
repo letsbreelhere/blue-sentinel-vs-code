@@ -139,6 +139,7 @@ class Client {
   }
 
   async sendMessage(messageType: number, ...data: any) {
+    console.log('sending message', messageType, data);
     protocol.validateMessage([messageType, ...data]);
     return this.websocket.send(JSON.stringify([messageType, ...data]));
   }

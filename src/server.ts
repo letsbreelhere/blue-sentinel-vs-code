@@ -28,6 +28,7 @@ class Server {
   }
 
   handleMessage(ws: WebSocket, message: string, clientId: number) {
+    Logger.log(`${clientId}: ${message}`);
     let parsed;
     try {
       parsed = JSON.parse(message);
@@ -84,7 +85,6 @@ class Server {
         break;
       case MessageTypes.MSG_INITIAL:
         this.sendToOthers(parsed, clientId);
-        const client = this.connectedClients.get(clientId);
         break;
       case MessageTypes.MSG_MARK:
         this.sendToOthers(parsed, clientId);
