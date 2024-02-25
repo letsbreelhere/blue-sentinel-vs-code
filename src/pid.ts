@@ -35,23 +35,6 @@ function randomBetween(left: number, right: number): number {
   return left + 1 + delta;
 }
 
-export function eq(left: Pid, right: Pid): boolean {
-  if (left.length !== right.length) {
-    return false;
-  }
-
-  for (let i = 0; i < left.length; i++) {
-    const l = left[i];
-    const r = right[i];
-
-    if (!r || !pidElemEq(l, r)) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 function pidElemLt(left: [number, number], right: [number, number]): boolean {
   return left[0] < right[0] || (left[0] === right[0] && left[1] < right[1]);
 }
@@ -60,29 +43,40 @@ function pidElemEq(left: [number, number], right: [number, number]): boolean {
   return left[0] === right[0] && left[1] === right[1];
 }
 
-export function lt(left: Pid, right: Pid): boolean {
-  for (let i = 0; i < Math.max(left.length, right.length); i++) {
+type Ordering = "LT" | "EQ" | "GT"
+export function compare(left: Pid, right: Pid): Ordering {
+  const len = Math.min(left.length, right.length);
+
+  for (let i = 0; i < len; i++) {
     const l = left[i];
     const r = right[i];
 
-    if (!r) {
-      return false;
-    } else if (!l) {
-      return true;
-    } else if (pidElemLt(l, r)) {
-      return true;
-    } else if (pidElemEq(l, r)) {
-      continue;
-    } else {
-      return false;
+    if (pidElemLt(l, r)) {
+      return "LT";
+    } else if (pidElemLt(r, l)) {
+      return "GT";
     }
   }
 
-  return false;
+  if (left.length < right.length) {
+    return "LT";
+  } else if (left.length > right.length) {
+    return "GT";
+  } else {
+    return "EQ";
+  }
+}
+
+export function eq(left: Pid, right: Pid): boolean {
+  return compare(left, right) === "EQ";
+}
+
+export function lt(left: Pid, right: Pid): boolean {
+  return compare(left, right) === "LT";
 }
 
 export function gt(left: Pid, right: Pid): boolean {
-  return !eq(left, right) && !lt(left, right);
+  return compare(left, right) === "GT";
 }
 
 // Generate a PID p between left and right, such that left < p < right.
