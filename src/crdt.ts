@@ -35,7 +35,7 @@ export class CRDT {
     const joinedLines: string = initial.lines.join("\n");
     let pids = initial.pids;
 
-    this.lowPid = pids[1];
+    this.lowPid = pids[0];
     this.highPid = pids[pids.length - 1];
 
     pids = pids.slice(2, -1);
