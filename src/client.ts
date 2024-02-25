@@ -66,7 +66,7 @@ class Client {
   makeHostCrdt() {
     this.crdt = new CRDT({
       hostId: 100,
-      pids: [pid.make(0, 0), pid.make(1, 0), pid.make(pid.MAX_PID, 0)],
+      pids: [pid.make(0, 0), pid.make(1, 0), pid.make(pid.MAX_UID, 0)],
       lines: [''],
     });
 

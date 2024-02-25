@@ -11,6 +11,7 @@ suite('PIDs', () => {
     assert.equal(pid.compare([[1,0],[2,0]] as Pid, [[1,0],[2,0],[3,0]] as Pid), "LT");
     assert.equal(pid.compare([[5,0]] as Pid, [[2,0]] as Pid), "GT");
     assert.equal(pid.compare([[2,0],[1,0]] as Pid, [[2,0]] as Pid), "GT");
+    assert.equal(pid.compare([[65534, 101], [4286578687, 101]] as Pid, [[65534, 101], [4286578687, 101], [1387, 100]] as Pid), "LT");
   });
 
   test('PIDs are generated preserving order', () => {
@@ -20,6 +21,8 @@ suite('PIDs', () => {
     const p = pid.generate(cid, left, right);
     const p2 = pid.generate(cid, p, right);
 
+    console.warn(`Generated ${pid.show(p)}, ${pid.show(p2)}`);
+
     assert.ok(pid.lt(left, p));
     assert.ok(pid.lt(p, p2));
     assert.ok(pid.lt(p2, right));
@@ -27,7 +30,7 @@ suite('PIDs', () => {
 
   test('Lots of PIDs at once', () => {
     const low: Pid = pid.make(1, cid);
-    const high: Pid = pid.make(pid.MAX_PID, cid);
+    const high: Pid = pid.make(pid.MAX_UID, cid);
 
     let cur = low;
     for (let i = 0; i < 1000; i++) {
