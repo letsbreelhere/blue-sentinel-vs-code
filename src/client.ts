@@ -18,6 +18,7 @@ interface RemoteClient {
   decoration: vscode.TextEditorDecorationType;
 }
 
+
 function sequence<T>(list: readonly T[], f: (item: T, ix: number) => Promise<void>) {
   return list.reduce((p, c, i) => p.then(() => f(c, i)), Promise.resolve());
 }
@@ -48,7 +49,7 @@ class Client {
   }
 
   constructor(url: URL, isHost: boolean, document: vscode.TextDocument) {
-    const ws = new WebSocket(url, 'chat');
+    const ws = new WebSocket(url, 'blue-sentinel');
     this.websocket = ws;
     this.isHost = isHost;
     this.document = document;
