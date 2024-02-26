@@ -178,24 +178,34 @@
   "$defs": {
     "operation": {
       "type": "array",
-      "oneOf": [
+      "items": [
         {
-          "items": [
-            {
-                "enum": [1, 2]
-            },
-            {
-              "type": "string",
-              "maxLength": 1
-            },
-            {
-              "$ref": "#/$defs/pid"
-            }
-          ],
-          "minItems": 3,
-          "additionalItems": false
+          "enum": [
+            1,
+            2
+          ]
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": [
+              {
+                "$ref": "#/$defs/pid"
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1
+              }
+            ],
+            "minItems": 2,
+            "additionalItems": false
+          }
         }
-      ]
+      ],
+      "minItems": 2,
+      "additionalItems": false
     },
     "pid": {
       "type": "array",

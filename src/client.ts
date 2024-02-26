@@ -76,32 +76,36 @@ class Client {
     });
   }
 
-  async sendInsert(p: Pid, c: string) {
-    return this.sendMessage(MessageTypes.MSG_TEXT, [protocol.OP_INS, c, pid.serializable(p)], this.buffer, this.clientId!);
+  async sendInserts(content: [Pid, string][]) {
+    return this.sendMessage(MessageTypes.MSG_TEXT, [protocol.OP_INS, content], this.buffer, this.clientId!);
   }
 
-  async sendDelete(p: Pid, c: string) {
-    return this.sendMessage(MessageTypes.MSG_TEXT, [protocol.OP_DEL, c, pid.serializable(p)], this.buffer, this.clientId!);
+  async sendDeletes(deletes: [Pid, string][]) {
+    return this.sendMessage(MessageTypes.MSG_TEXT, [protocol.OP_DEL, deletes], this.buffer, this.clientId!);
   }
 
   async insertFromContentChange(change: vscode.TextDocumentContentChangeEvent) {
     const pos = this.document.positionAt(change.rangeOffset);
-    await sequence(change.text.split(''), async (c, i) => {
+    const inserts: [Pid, string][] = change.text.split('').map((c, i) => {
       // PID 0 is the beginning of the _document_, but the beginning of the first _line_ is PID 1.
       const offset = this.document.offsetAt(pos.translate(0, i));
       const p = this.crdt!.pidForInsert(this.clientId!, offset);
       this.crdt!.insert(p, c);
-      await this.sendInsert(p, c);
+      return [p, c];
     });
+
+    await this.sendInserts(inserts);
   }
 
   async deleteFromContentChange(change: vscode.TextDocumentContentChangeEvent) {
     const deletedIndices = Array(change.rangeLength).fill(0).map((_, i) => i + change.rangeOffset);
-    const deletedPids = deletedIndices.map((i) => this.crdt!.pidAt(i)!);
-    await sequence(deletedPids, async (p, i) => {
-      await this.sendDelete(p, this.crdt!.charAt(p)!);
-      await this.crdt!.delete(p);
+    const deletes: [Pid, string][] = deletedIndices.map((i) => {
+      const p = this.crdt!.pidAt(i)!;
+      const c = this.crdt!.charAt(p)!;
+      this.crdt!.delete(p);
+      return [p, c];
     });
+    await this.sendDeletes(deletes);
   }
 
   async handleTextChange(e: vscode.TextDocumentChangeEvent) {
@@ -228,41 +232,45 @@ class Client {
     this.editor()?.setDecorations(client.decoration, [{ range }]);
   }
 
-  async handleRemoteInsert(pid: Pid, c: string, clientId: number) {
-    const i = this.crdt!.insert(pid, c);
+  async handleRemoteInserts(inserts: [Pid, string][], clientId: number) {
+    await sequence(inserts, async ([pid, c]) => {
+      const i = this.crdt!.insert(pid, c);
 
-    this.updateRemoteClientOffset(clientId, i);
-    const pos = this.document.positionAt(i);
+      this.updateRemoteClientOffset(clientId, i);
+      const pos = this.document.positionAt(i);
 
-    this.activeEdit = {
-      kind: 'insert',
-      range: new vscode.Range(pos, pos),
-      text: c,
-    };
-    await this.editor()?.edit((editBuilder) => {
-      editBuilder.insert(pos, c);
+      this.activeEdit = {
+        kind: 'insert',
+        range: new vscode.Range(pos, pos),
+        text: c,
+      };
+      await this.editor()?.edit((editBuilder) => {
+        editBuilder.insert(pos, c);
+      });
+      this.activeEdit = undefined;
     });
-    this.activeEdit = undefined;
   }
 
-  async handleRemoteDelete(pid: Pid, c: string, clientId: number) {
-    const i = this.crdt!.delete(pid);
-    const pos = this.document.positionAt(i);
-    const isDeletingLine: boolean = c === '\n';
-    let range = new vscode.Range(pos, pos.translate(0, 1));
-    if (isDeletingLine) {
-      range = new vscode.Range(pos, pos.translate(1, 0).with(undefined, 0));
-    }
-    this.activeEdit = {
-      kind: 'delete',
-      range,
-      text: '',
-    };
-    await this.editor()?.edit((editBuilder) => {
-      editBuilder.delete(range);
+  async handleRemoteDeletes(deletes: [Pid, string][], clientId: number) {
+    await sequence(deletes, async ([pid, c]) => {
+      const i = this.crdt!.delete(pid);
+      const pos = this.document.positionAt(i);
+      const isDeletingLine: boolean = c === '\n';
+      let range = new vscode.Range(pos, pos.translate(0, 1));
+      if (isDeletingLine) {
+        range = new vscode.Range(pos, pos.translate(1, 0).with(undefined, 0));
+      }
+      this.activeEdit = {
+        kind: 'delete',
+        range,
+        text: '',
+      };
+      await this.editor()?.edit((editBuilder) => {
+        editBuilder.delete(range);
+      });
+      this.updateRemoteClientOffset(clientId, this.document.offsetAt(range.start));
+      this.activeEdit = undefined;
     });
-    this.updateRemoteClientOffset(clientId, this.document.offsetAt(range.start));
-    this.activeEdit = undefined;
   }
 
   async handleAvailableMessage(data: any[]) {
@@ -285,16 +293,14 @@ class Client {
   }
 
   async handleText(op: any[], clientId: number) {
-    let _op, c, pid;
-
     switch (op[0]) {
       case protocol.OP_INS:
-        [_op, c, pid] = op;
-        const i = this.handleRemoteInsert(pid, c, clientId);
+        const inserts = op[1];
+        const i = this.handleRemoteInserts(inserts, clientId);
         break;
       case protocol.OP_DEL:
-        [_op, c, pid] = op;
-        this.handleRemoteDelete(pid, c, clientId);
+        const deletes = op[1];
+        this.handleRemoteDeletes(deletes, clientId);
         break;
       default:
         break;
