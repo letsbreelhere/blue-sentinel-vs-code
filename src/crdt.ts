@@ -56,19 +56,21 @@ export class CRDT {
     return this.sortedPids[i] as Pid;
   }
 
-  pidForInsert(clientId: number, offset: number): Pid {
-    if (offset === 0) {
-      if (this.sortedPids.length === 0) {
-        return pid.generate(clientId, this.lowPid, this.highPid);
-      } else {
-        return pid.generate(clientId, this.lowPid, this.pidAt(0)!);
-      }
-    } else if (offset === this.sortedPids.length) {
-      const p = this.pidAt(this.sortedPids.length - 1)!;
-      return pid.generate(clientId, this.pidAt(this.sortedPids.length - 1)!, this.highPid);
+  pidForInsert(clientId: number, index: number): Pid {
+    let left: Pid, right: Pid;
+
+    if (index === 0) {
+      left = this.lowPid;
+      right = this.pidAt(0) || this.highPid;
+    } else if (index >= this.sortedPids.length) {
+      left = this.pidAt(this.sortedPids.length - 1)!;
+      right = this.highPid;
     } else {
-      return pid.generate(clientId, this.pidAt(offset - 1)!, this.pidAt(offset)!);
+      left = this.pidAt(index - 1)!;
+      right = this.pidAt(index)!;
     }
+
+    return pid.generate(clientId, left, right);
   }
 
   pidAfter(i: number): Pid {

@@ -84,11 +84,9 @@ class Client {
     return this.sendMessage(MessageTypes.MSG_TEXT, [protocol.OP_DEL, deletes], this.buffer, this.clientId!);
   }
 
-  async insertFromContentChange(change: vscode.TextDocumentContentChangeEvent) {
-    const pos = this.document.positionAt(change.rangeOffset);
+  async handleLocalInsert(change: vscode.TextDocumentContentChangeEvent) {
     const inserts: [Pid, string][] = change.text.split('').map((c, i) => {
-      // PID 0 is the beginning of the _document_, but the beginning of the first _line_ is PID 1.
-      const offset = this.document.offsetAt(pos.translate(0, i));
+      const offset = change.rangeOffset + i;
       const p = this.crdt!.pidForInsert(this.clientId!, offset);
       this.crdt!.insert(p, c);
       return [p, c];
@@ -97,14 +95,14 @@ class Client {
     await this.sendInserts(inserts);
   }
 
-  async deleteFromContentChange(change: vscode.TextDocumentContentChangeEvent) {
+  async handleLocalDelete(change: vscode.TextDocumentContentChangeEvent) {
     const deletedIndices = Array(change.rangeLength).fill(0).map((_, i) => i + change.rangeOffset);
     const deletes: [Pid, string][] = deletedIndices.map((i) => {
       const p = this.crdt!.pidAt(i)!;
       const c = this.crdt!.charAt(p)!;
-      this.crdt!.delete(p);
       return [p, c];
     });
+    deletes.forEach(([p, c]) => this.crdt!.delete(p));
     await this.sendDeletes(deletes);
   }
 
@@ -121,15 +119,15 @@ class Client {
           return;
         }
 
-        await this.insertFromContentChange(change);
+        await this.handleLocalInsert(change);
       } else if (change.rangeLength > 0) {
         if (this.activeEdit?.kind === 'delete' && change.range.isEqual(this.activeEdit.range)) {
           return;
         }
 
         // Handle a replace as a delete followed by an insert
-        await this.deleteFromContentChange(change);
-        await this.insertFromContentChange(change);
+        await this.handleLocalDelete(change);
+        await this.handleLocalInsert(change);
       } else {
       }
     });

@@ -91,7 +91,7 @@ export function generate(clientId: number, left: Pid, right: Pid): Pid {
   let differingIndex = maxlen;
 
   for (let i = 0; i < maxlen; i++) {
-    const l = left[i] || [1, clientId];
+    const l = left[i] || [0, clientId];
     const r = right[i] || [MAX_UID, clientId];
 
     if (pidElemLt(r, l)) {
