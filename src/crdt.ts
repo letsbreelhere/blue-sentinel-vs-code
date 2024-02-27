@@ -38,7 +38,7 @@ export class CRDT {
     this.lowPid = pids[0];
     this.highPid = pids[pids.length - 1];
 
-    pids = pids.slice(2, -1);
+    pids = pids.slice(1, -1);
 
     for (let i = 0; i < joinedLines.length; i++) {
       const p: Pid = pids[i];
